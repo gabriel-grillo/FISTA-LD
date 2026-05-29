@@ -20,13 +20,13 @@ dist/
 
 .env
 
-data/*
+code/data/*
 
-!data/mayo_clinic_image/
+!code/data/mayo_clinic_image/
 
-data/mayo_clinic_image/*
+code/data/mayo_clinic_image/*
 
-!data/mayo_clinic_image/README.md
+!code/data/mayo_clinic_image/README.md
 
 params/*
 plots/*
