@@ -29,11 +29,11 @@ if TRAIN_ON_GPU:
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
-        # Setting memory limit
-        tf.config.set_logical_device_configuration(
-            gpus[0],
-            [tf.config.LogicalDeviceConfiguration(memory_limit=16303 * 0.90)]
-        )
+        # # Setting memory limit
+        # tf.config.set_logical_device_configuration(
+        #     gpus[0],
+        #     [tf.config.LogicalDeviceConfiguration(memory_limit=16303 * 0.90)]
+        # )
 else:
     tf.config.set_visible_devices([], 'GPU')
 
@@ -897,7 +897,7 @@ def test_deepopt( dataset, problem, mode, miniter, maxiter, alpha, epochs, date,
 #######################################################################################################################
 
 ##### TRAINING - TESTING PARAMETERS
-DATASET             = 'mayo_clinic_512'   # 'mayo_clinic_128' or 'mayo_clinic_512'
+DATASET             = 'mayo_clinic_128'   # 'mayo_clinic_128' or 'mayo_clinic_512'
 PROBLEM             = 'lasso'             # 'nnls' or 'lasso' or 'slasso' or 'nnslasso'
 TRAIN_BATCH_SIZE    = 1
 EPOCHS_TO_SAVE      = [ 20 ]
@@ -910,10 +910,10 @@ MAXITER             = [ 20 ]
 
 TEST_MODE           = 'val' # 'test' or 'val'
 TEST_ITERS          = 1000
-TEST_BATCH_SIZE     = 100
+TEST_BATCH_SIZE     = 10
 
 TRAIN_DATASET_RATIO = [ 0.05 ]
-TEST_DATASET_RATIO  = [1.0] * len(TRAIN_DATASET_RATIO)
+TEST_DATASET_RATIO  = [0.05] * len(TRAIN_DATASET_RATIO)
 DATASET_RATIO = list( zip( TRAIN_DATASET_RATIO, TEST_DATASET_RATIO ) )
 
 start = time.time()
@@ -930,16 +930,16 @@ for dataset_ratio in set(TEST_DATASET_RATIO):
         test_untrained( DATASET, PROBLEM, TEST_MODE, 'fista', TEST_BATCH_SIZE, TEST_ITERS, tau = tau_fista, dataset_ratio = dataset_ratio )
 
 ### TRAINING - TESTING FISTA-LD -- set a negative const_tau to enable varying tau
-# train and test all possible combinations
-ALPHA       = np.logspace(-3.5, -1.5, 5)
-GAMMA       = [ 0.01, 0.025, 0.05, 0.075, 0.1 ]
-CONST_TAU   = [ -1.0, -1.0, -1.0, -1.0, -1.0 ]
-PARAMS      = list( product( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
-# # train and test the listed combinations
-# ALPHA     = [ 10**(-2.5) ]
-# GAMMA     = [ 0.05 ]
-# CONST_TAU = [ -1.0 ]
-# PARAMS    = list( zip( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
+# # train and test all possible combinations
+# ALPHA       = np.logspace(-3.5, -1.5, 5)
+# GAMMA       = [ 0.01, 0.025, 0.05, 0.075, 0.1 ]
+# CONST_TAU   = [ -1.0, -1.0, -1.0, -1.0, -1.0 ]
+# PARAMS      = list( product( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
+# train and test the listed combinations
+ALPHA     = [ 10**(-2.5) ]
+GAMMA     = [ 0.05 ]
+CONST_TAU = [ -1.0 ]
+PARAMS    = list( zip( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
 for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)), PARAMS ) ):
     dataset_ratio, iters, params = options
     train_dataset_ratio, test_dataset_ratio = dataset_ratio
@@ -968,8 +968,8 @@ for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)),
 
 
 ##### TRAINING - TESTING DEEPOPT
-# ALPHA_DO = [ 0.5 ]
-ALPHA_DO = [ 0.1, 0.25, 0.5, 0.75, 0.9 ]
+ALPHA_DO = [ 0.5 ]
+# ALPHA_DO = [ 0.1, 0.25, 0.5, 0.75, 0.9 ]
 for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)), ALPHA_DO ) ):
     dataset_ratio, iters, alpha = options
     train_dataset_ratio, test_dataset_ratio = dataset_ratio

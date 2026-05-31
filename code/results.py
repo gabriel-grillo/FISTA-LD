@@ -18,18 +18,19 @@ COLORS = list(mcolors.TABLEAU_COLORS.keys())
 
 ######################### RESULTS PARAMETERS ##################################
 MODE                = 'val'
-DATASET             = 'mayo_clinic_512'   # 'mayo_clinic_128' or 'mayo_clinic_512'
+DATASET             = 'mayo_clinic_128'   # 'mayo_clinic_128' or 'mayo_clinic_512'
 PROBLEM             = 'lasso'             # 'nnls' or 'lasso' or 'slasso' or 'nnslasso' or 'lstv'
 EPOCHS_TO_PLOT      = [ 20 ]
-DATE                = '2026-05-26'
+DATE                = datetime.today().strftime('%Y-%m-%d')
+# DATE                = '2026-05-31'
 MINITER             = [  1 ]
 MAXITER             = [ 20 ]
 TRAINED_ITERS       = list(zip(MINITER,MAXITER))
 PLOT_ITERS          = 1000
 PLOT_ISTA           = True
 
-TRAIN_DATASET_RATIO = [1.0]
-TEST_DATASET_RATIO  = 1.0
+TRAIN_DATASET_RATIO = [0.05]
+TEST_DATASET_RATIO  = 0.05
 
 ### FISTA parameters
 # TAU_UNTRAINED_FISTA = [0.1,0.25, 0.5, 0.75,0.9]
@@ -49,7 +50,7 @@ FISTA_LD_PARAMS = list( zip( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
 trained_fista_ld = len( list( product( FISTA_LD_PARAMS, TRAIN_DATASET_RATIO, EPOCHS_TO_PLOT, TRAINED_ITERS ) ) )
 
 ### DeepOpt parameters
-PLOT_DEEPOPT = False
+PLOT_DEEPOPT = True
 if PLOT_DEEPOPT:
     MINITER_DO = [ 1 ]
     MAXITER_DO = [ 20 ]
@@ -59,8 +60,8 @@ else:
     MINITER_DO = []
     MAXITER_DO = []
     ALPHA_DO   = []
-DATE_DO    = '2026-05-25'
-
+DATE_DO    = datetime.today().strftime('%Y-%m-%d')
+# DATE_DO    = '2026-05-31'
 trained_deepopt = len( list( product( ALPHA_DO, TRAIN_DATASET_RATIO, EPOCHS_TO_PLOT, list(zip(MINITER_DO,MAXITER_DO)) ) ) )
 
 ######################### SETTING FIGURES' PATH ##################################
@@ -710,7 +711,7 @@ for j in range(len(K)):
     use_ul[:,j] = data_mean[:,j] <= data_mean[i_min,j]
     use_bold[:,j] = data_mean[:,j] - data_std[:,j] <= data_mean[i_min,j] + data_std[i_min,j]
 
-print('\n----------------------------------------------------------------- Printing the table of mean optmality gap for each k ----------------------------------------------------------------------')
+print('\n----------------------------------------------------------------- Printing the table of mean optmality gap for each k - LaTeX format ----------------------------------------------------------------------')
 line = ''
 for k in K:
     line += f' & $k={k}$'
@@ -824,5 +825,5 @@ for i in range(trained_deepopt):
 table3 = pd.DataFrame( data, index = labels_fista_ld + labels_deepopt )
 table3.index.name = 'Algorithms'
 table3.columns.name = 'Penalty'
-print(table2.to_string( float_format="%.2e", col_space=12 ), '\n')
+print(table3.to_string( float_format="%.2e", col_space=12 ), '\n')
 # print(table3.to_latex( float_format="%.2e" ), '\n')

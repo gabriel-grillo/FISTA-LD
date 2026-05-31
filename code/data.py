@@ -5,7 +5,7 @@ import tensorflow as tf
 from pydicom import dcmread
 from operators import data_simulation_ray_transform
 
-MAYO_FOLDER = os.path.join('code', 'data', 'mayo_clinic_image', 'full_3mm' )
+MAYO_FOLDER = os.path.join( os.getcwd(), 'data', 'mayo_clinic_image', 'full_3mm' )
 TEST_RATIO  = 0.2
 VAL_RATIO   = 0.1
 RANDOM_SEED = 42
@@ -21,6 +21,9 @@ def generate_observed_dataset( dataset ):
     for (dirpath, dirnames, filenames) in os.walk(MAYO_FOLDER):
         data.extend( [ os.path.join( dirpath, fi ) for fi in filenames ] )
     data = np.array(data)
+
+    if data.size == 0:
+        raise ValueError( f'There is no data in {MAYO_FOLDER}. Please see the README.md at {os.path.join( os.getcwd(), 'data', 'mayo_clinic_image' )}.' )
 
     # Separates dataset into train, test, and validation
     rng.shuffle( data )
@@ -62,8 +65,8 @@ def generate_F_dataset( dataset, problem, F_ref ):
     for mode in ['train', 'val', 'test']:
         # Loading the observed sinograms dataset
         obs_dataset = tf.data.Dataset.load( os.path.join( dataset_path, 'observed', mode ) )
-        # Operations in batches of size 100. This may be a large batch size, possibly leading to an out-of-memory error.
-        obs_dataset = obs_dataset.batch( 100 )
+        # Operations in batches of size 32.
+        obs_dataset = obs_dataset.batch( 32 )
         # Empty list of functional values
         F_list = []
         # Running through examples
