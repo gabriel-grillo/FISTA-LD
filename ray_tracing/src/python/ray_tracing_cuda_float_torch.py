@@ -1,4 +1,5 @@
 # I use the one encoding: utf8
+import os
 import ctypes
 import ctypes.util
 import numpy
@@ -9,7 +10,7 @@ import torch
 # Load required libraries:
 libcudart = ctypes.CDLL( ctypes.util.find_library( "cudart" ), mode=ctypes.RTLD_GLOBAL )
 libstdcpp = ctypes.CDLL( ctypes.util.find_library( "stdc++" ), mode=ctypes.RTLD_GLOBAL )
-libtomo   = ctypes.CDLL( "./cuda_radon_torch.so" )
+libtomo = ctypes.CDLL( os.path.join( os.path.dirname(__file__), "cuda_radon_torch.so" ) )
 
 # "float *" type:
 _c_float_p = ctypes.POINTER( ctypes.c_float )
