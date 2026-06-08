@@ -10,9 +10,11 @@ import ray_tracing_cuda_float_torch as rt
 import pywt
 from math import sqrt
 
+RANDOM_SEED = 42
+
 def power_method( A, A_T, domain_shape, maxiter = 1000, rtol = 1e-12, atol = 1e-16 ):
     """Computes the norm of A by the power method."""
-    x = torch.rand( domain_shape, device = 'cuda' )
+    x = torch.rand( domain_shape, device = 'cuda', generator = torch.Generator(device='cuda').manual_seed(RANDOM_SEED) )
     x_norm = torch.linalg.vector_norm(x)
     x /= x_norm
 
@@ -47,9 +49,10 @@ def check_ray_transform( T, T_transp, img_shape, sino_shape, tol = 2 * np.finfo(
     # Checking the transpose operator
     samples = 100
     mean = 0.0
+    torch_generator = torch.Generator(device='cuda').manual_seed(RANDOM_SEED)
     for i in range(samples):
-        x = torch.rand( img_shape, device = 'cuda' )
-        y = torch.rand( sino_shape, device = 'cuda' )
+        x = torch.rand( img_shape, device = 'cuda', generator = torch_generator )
+        y = torch.rand( sino_shape, device = 'cuda', generator = torch_generator )
 
         Ax = T(x)
         ATy = T_transp(y)
@@ -61,11 +64,14 @@ def check_ray_transform( T, T_transp, img_shape, sino_shape, tol = 2 * np.finfo(
 def check_wavelet_transform( W, W_transp, img_shape, tol = 3 * np.finfo(np.float32).eps ):
     """Performs sanity checks on the norm and the transpose operator for the Wavelet Transform"""
 
+    # Numpy random generator
+    rng = np.random.default_rng( seed = RANDOM_SEED )
+
     # Checking orthogonality (numerically)
     samples = 100
     mean = 0.0
     for i in range(samples):
-        x = np.random.uniform( size = img_shape ).astype(np.float32)
+        x = rng.uniform( size = img_shape ).astype(np.float32)
         mean += np.linalg.norm( x - W_transp( W( x ) ) ) / np.linalg.norm(x)
     mean /= samples
     assert mean < tol, f'W is not orthonormal (Numerical orthogonality check failed -> Mean error is {mean} > {tol})'
@@ -74,8 +80,8 @@ def check_wavelet_transform( W, W_transp, img_shape, tol = 3 * np.finfo(np.float
     samples = 100
     mean = 0.0
     for i in range(samples):
-        x = np.random.uniform( size = img_shape ).astype(np.float32)
-        y = np.random.uniform( size = img_shape ).astype(np.float32)
+        x = rng.uniform( size = img_shape ).astype(np.float32)
+        y = rng.uniform( size = img_shape ).astype(np.float32)
 
         Wx = W(x)
         WTy = W_transp(y)
@@ -133,9 +139,9 @@ def check_discrete_gradient_op( img_shape, tol = 1e-5 ):
     samples = 100
     mean = tf.constant( 0.0, dtype = tf.float32 )
     for i in range(samples):
-        x = tf.random.normal( (1,) + img_shape + (1,), dtype = tf.float32 )
+        x = tf.random.normal( (1,) + img_shape + (1,), dtype = tf.float32, seed = RANDOM_SEED )
         # Checking only for y in the range of the Discrete Gradient Transform
-        y = discrete_gradient_transform( tf.random.normal( (1,) + img_shape + (1,), dtype = tf.float32 ) )
+        y = discrete_gradient_transform( tf.random.normal( (1,) + img_shape + (1,), dtype = tf.float32, seed = RANDOM_SEED ) )
 
         Dx = discrete_gradient_transform(x)
         DTy = discrete_gradient_transform_transp(y)

@@ -13,7 +13,7 @@ RANDOM_SEED = 42
 def generate_observed_dataset( dataset ):
     assert dataset == 'mayo_clinic_128' or dataset == 'mayo_clinic_512'
 
-    # Random generator
+    # Numpy random generator
     rng = np.random.default_rng( seed = RANDOM_SEED )
 
     # Reads files
@@ -108,7 +108,7 @@ def get_dataset( dataset, mode, problem, batch_size, F_ref, overall_ratio = 1.0 
 
     if mode == 'train':
         # Shuffles train examples at the beginning of each epoch
-        Dataset = Dataset.shuffle( 500, reshuffle_each_iteration = True )
+        Dataset = Dataset.shuffle( 500, reshuffle_each_iteration = True, seed = RANDOM_SEED )
 
     # Combines examples on batches
     Dataset = Dataset.batch( batch_size )

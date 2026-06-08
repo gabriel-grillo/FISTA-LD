@@ -28,6 +28,7 @@ code/data/mayo_clinic_image/*
 
 !code/data/mayo_clinic_image/README.md
 
-params
+models
 plots
-test_results
+hist
+paper_results_data

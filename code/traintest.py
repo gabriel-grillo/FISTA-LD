@@ -10,33 +10,11 @@ pp.rcParams[ 'savefig.bbox' ] = 'tight'
 from operators import reconstruction_operators, torch_linear_op_as_tf2_layer, wavelet_as_tf2_layer
 from data import get_dataset
 from optimization import fista, ista, fista_ld, computeR, deepopt_nonsmooth
+from paths import model_path, hist_path
 
-from itertools import product
-
-#######################################################################################################################
-#################################################### GPU SETTINGS #####################################################
-#######################################################################################################################
-TRAIN_ON_GPU = True
-MEMORY_GROWTH = False
-if TRAIN_ON_GPU:
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        # Setting memory growth
-        try:
-            # Currently, memory growth needs to be the same across GPUs
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth(gpu, MEMORY_GROWTH)
-        except RuntimeError as e:
-            # Memory growth must be set before GPUs have been initialized
-            print(e)
-        # # Setting memory limit
-        # tf.config.set_logical_device_configuration(
-        #     gpus[0],
-        #     [tf.config.LogicalDeviceConfiguration(memory_limit=16303 * 0.90)]
-        # )
-else:
-    tf.config.set_visible_devices([], 'GPU')
-
+RANDOM_SEED = 42
+SAVE_RECONSTRUCTIONS = False
+PRINT_FINAL_LOSS = True
 
 #######################################################################################################################
 ################################################ PROBLEM'S DEFINITION #################################################
@@ -174,6 +152,27 @@ def training_loop( epochs, train_step, ds_train, save_weights, saving_path, load
             np.savetxt( file, [epoch+1] )
             np.savetxt( file, [np.sum(time_hist[1:]) / (epochs-1)] )
 
+def network_base_arch( input_list, name ):
+    FILTERS = 32
+    KSIZE = 3
+    N_OUT = 1
+    N_LAYERS = 2
+
+    input_convnet = keras.layers.Concatenate(axis=-1)(input_list)
+
+    x = keras.layers.GroupNormalization(groups=-1)(input_convnet)
+    for i in range(N_LAYERS):
+        x = keras.layers.Conv2D(FILTERS, KSIZE,
+                                padding='same',
+                                kernel_regularizer=keras.regularizers.L2(1e-5),
+                                kernel_initializer=keras.initializers.VarianceScaling(seed=RANDOM_SEED))(x)
+        x = keras.layers.GroupNormalization(groups=-1)(x)
+        x = keras.layers.LeakyReLU()(x)
+    result = keras.layers.Conv2D(N_OUT, KSIZE,
+                                 padding='same',
+                                 kernel_initializer=keras.initializers.VarianceScaling(seed=RANDOM_SEED))(x)
+    
+    return keras.Model( inputs = input_list, outputs = result, name = name )
 
 def train_fista_ld( dataset, problem, miniter, maxiter, alpha, gamma, const_tau,
                     epochs, batch_size, date, load_saved_models, 
@@ -183,32 +182,10 @@ def train_fista_ld( dataset, problem, miniter, maxiter, alpha, gamma, const_tau,
         problem_definition( dataset, 'train', problem, batch_size, dataset_ratio )
 
     ######################### MODELS' PATH ##################################
-    MODEL_PATH = os.path.join( os.getcwd(), 'params', 'fista-ld', dataset, str( dataset_ratio * 100 ) + 'percent', problem )
-
-    if maxiter == miniter:
-        trained_iterations = 'fixed'
-        MODEL_PATH = os.path.join( MODEL_PATH, 'iters_' + trained_iterations + '_' + str(maxiter) )
-    elif maxiter > miniter:
-        trained_iterations = 'random'
-        MODEL_PATH = os.path.join( MODEL_PATH, 'iters_' + trained_iterations + '_' + str(miniter) + '_' + str(maxiter) ) 
-    else:
-        raise ValueError()
-
-    if const_tau <= 0:
-        var_tau = True
-        MODEL_PATH = os.path.join( MODEL_PATH, 'alpha' + str(alpha)[2:], 'gamma' + str(gamma)[2:]  )
-    else:
-        var_tau = False
-        MODEL_PATH = os.path.join( MODEL_PATH, 'alpha' + str(alpha)[2:], 'const_tau' + str(const_tau)[2:]  )
-    MODEL_PATH = os.path.join( MODEL_PATH, 'date_' + date )
-
-    if os.path.exists(MODEL_PATH) and not load_saved_models:
-        for ( dirpath, dirnames, filenames ) in os.walk(MODEL_PATH):
-            for fi in filenames:
-                os.remove( os.path.join( dirpath, fi ) )
-
-    if not os.path.exists(MODEL_PATH):
-        os.makedirs(MODEL_PATH)
+    MODEL_PATH = model_path( 'fista-ld',
+                             [dataset, dataset_ratio, problem, miniter, maxiter, alpha, gamma, const_tau, date],
+                             load_saved_models,
+                             training = True )
 
     ######################### MODELS' DEFINITION ##################################
     ##### DY MODEL
@@ -218,28 +195,11 @@ def train_fista_ld( dataset, problem, miniter, maxiter, alpha, gamma, const_tau,
             last_epoch = int(lines[0])
         dy_model = keras.models.load_model( os.path.join( MODEL_PATH, f'epoch_{int(last_epoch)}', 'dy.keras' ) )
     else:
-        input_y = keras.Input(shape=x_shape, name='y')
+        input_y         = keras.Input(shape=x_shape, name='y')
         input_grad_prev = keras.Input(shape=x_shape, name='grad_prev')
-        input_dy_prev = keras.Input(shape=x_shape, name='dy_prev')
-
-        input_convnet = keras.layers.Concatenate(axis=-1)([input_y, input_grad_prev, input_dy_prev])
-        
-        FILTERS = 32
-        KSIZE = 3
-        N_OUT = 1
-        N_LAYERS = 2
-
-        x = keras.layers.GroupNormalization(groups=-1)(input_convnet)
-        for i in range(N_LAYERS):
-            x = keras.layers.Conv2D(FILTERS, KSIZE,
-                                    padding='same',
-                                    kernel_regularizer=keras.regularizers.L2(1e-5),
-                                    kernel_initializer=keras.initializers.VarianceScaling())(x)
-            x = keras.layers.GroupNormalization(groups=-1)(x)
-            x = keras.layers.LeakyReLU()(x)
-        result = keras.layers.Conv2D(N_OUT, KSIZE, padding='same')(x)
-        
-        dy_model = keras.Model(inputs=[input_y, input_grad_prev, input_dy_prev], outputs=result, name="dy_model")
+        input_dy_prev   = keras.Input(shape=x_shape, name='dy_prev')
+        dy_input_list   = [input_y, input_grad_prev, input_dy_prev]
+        dy_model        = network_base_arch( dy_input_list, "dy_model" )
     dy_model.summary()
     ##### DW MODEL
     if load_saved_models:
@@ -248,29 +208,12 @@ def train_fista_ld( dataset, problem, miniter, maxiter, alpha, gamma, const_tau,
             last_epoch = int(lines[0])
         dw_model = keras.models.load_model( os.path.join( MODEL_PATH, f'epoch_{int(last_epoch)}', 'dw.keras' ) )
     else:
-        input_y = keras.Input(shape=x_shape, name='y')
-        input_grad = keras.Input(shape=x_shape, name='grad')
-        input_dy = keras.Input(shape=x_shape, name='dy')
+        input_y       = keras.Input(shape=x_shape, name='y')
+        input_grad    = keras.Input(shape=x_shape, name='grad')
+        input_dy      = keras.Input(shape=x_shape, name='dy')
         input_dw_prev = keras.Input(shape=x_shape, name='dw_prev')
-        
-        input_convnet = keras.layers.Concatenate(axis=-1)([input_y, input_grad, input_dy, input_dw_prev])
-        
-        FILTERS = 32
-        KSIZE = 3
-        N_OUT = 1
-        N_LAYERS = 2
-
-        x = keras.layers.GroupNormalization(groups=-1)(input_convnet)
-        for i in range(N_LAYERS):
-            x = keras.layers.Conv2D(FILTERS, KSIZE,
-                                    padding='same',
-                                    kernel_regularizer=keras.regularizers.L2(1e-5),
-                                    kernel_initializer=keras.initializers.VarianceScaling())(x)
-            x = keras.layers.GroupNormalization(groups=-1)(x)
-            x = keras.layers.LeakyReLU()(x)
-        result = keras.layers.Conv2D(N_OUT, KSIZE, padding='same')(x)
-        
-        dw_model = keras.Model(inputs=[input_y, input_grad, input_dy, input_dw_prev], outputs=result, name="dw_model")
+        dw_input_list = [input_y, input_grad, input_dy, input_dw_prev]
+        dw_model      = network_base_arch( dw_input_list, "dw_model" )
     dw_model.summary()
     ##### SAVING INITIALIZED MODELS
     def save_weights(epoch):
@@ -292,6 +235,13 @@ def train_fista_ld( dataset, problem, miniter, maxiter, alpha, gamma, const_tau,
     else:
         R0 = computeR( problem, ds_train, x_shape, A, A_adj, A_norm, W, W_adj, W_norm, lam )
         np.save( os.path.join( MODEL_PATH, 'R0.npy' ), R0.numpy() )
+    ##### CHECK TAU SEQUENCE MODE
+    if const_tau <= 0:
+        var_tau = True
+    elif const_tau < 1:
+        var_tau = False
+    else:
+        raise ValueError(f'const_tau must be < 1, but got const_tau={const_tau}')
     ##### TRAINING STEP
     if dataset == 'mayo_clinic_512':
         num_detectors = 1000
@@ -311,11 +261,11 @@ def train_fista_ld( dataset, problem, miniter, maxiter, alpha, gamma, const_tau,
         # Initial point
         x0_train  = tf.zeros( shape = (tf.shape(b_train)[0],) + x_shape, dtype = tf.float32, name = 'x0' )
         # Number of iterations
-        if trained_iterations == 'fixed':
+        if miniter == maxiter:
             n_iter_train = tf.constant( maxiter, dtype = tf.int32, name = 'maxiter' )
         else:
             n_iter_train = tf.random.uniform( shape = [],  minval = miniter, maxval = maxiter + 1, \
-                                            dtype = tf.int32, name = 'maxiter' )
+                                              dtype = tf.int32, name = 'maxiter', seed = RANDOM_SEED )
         # Open a GradientTape: enables auto-differentiation.
         with tf.GradientTape() as tape:
             # Run the forward pass of the layer.
@@ -349,26 +299,10 @@ def train_deepopt( dataset, problem, miniter, maxiter, alpha,
         problem_definition( dataset, 'train', problem, batch_size, dataset_ratio )
     
     ######################### MODELS' PATH ##################################
-    MODEL_PATH = os.path.join( os.getcwd(), 'params', 'deepopt', dataset, str( dataset_ratio * 100 ) + 'percent', problem )
-    if maxiter == miniter:
-        trained_iterations = 'fixed'
-        MODEL_PATH = os.path.join( MODEL_PATH, 'iters_' + trained_iterations + '_' + str(maxiter) )
-    elif maxiter > miniter:
-        trained_iterations = 'random'
-        MODEL_PATH = os.path.join( MODEL_PATH, 'iters_' + trained_iterations + '_' + str(miniter) + '_' + str(maxiter) ) 
-    else:
-        raise ValueError()
-
-    MODEL_PATH = os.path.join( MODEL_PATH, 'alpha' + str(alpha)[2:] )
-    MODEL_PATH = os.path.join( MODEL_PATH, 'date_' + date )
-
-    if os.path.exists(MODEL_PATH) and not load_saved_models:
-        for ( dirpath, dirnames, filenames ) in os.walk(MODEL_PATH):
-            for fi in filenames:
-                os.remove( os.path.join( dirpath, fi ) )
-
-    if not os.path.exists(MODEL_PATH):
-        os.makedirs(MODEL_PATH)
+    MODEL_PATH = model_path( 'deepopt',
+                             [dataset, dataset_ratio, problem, miniter, maxiter, alpha, date],
+                             load_saved_models,
+                             training = True )
 
     ######################### MODELS' DEFINITION ##################################
     ##### DX1 MODEL
@@ -378,28 +312,11 @@ def train_deepopt( dataset, problem, miniter, maxiter, alpha,
             last_epoch = int(lines[0])
         dx1_model = keras.models.load_model( os.path.join( MODEL_PATH, f'epoch_{int(last_epoch)}', 'dx1.keras' ) )
     else:
-        input_x = keras.Input(shape=x_shape, name='x')
-        input_grad = keras.Input(shape=x_shape, name='grad')
-        input_dx1 = keras.Input(shape=x_shape, name='dx1')
-        
-        input_convnet = keras.layers.Concatenate(axis=-1)([input_x, input_grad, input_dx1])
-        
-        FILTERS = 32
-        KSIZE = 3
-        N_OUT = 1
-        N_LAYERS = 2
-
-        x = keras.layers.GroupNormalization(groups=-1)(input_convnet)
-        for i in range(N_LAYERS):
-            x = keras.layers.Conv2D(FILTERS, KSIZE,
-                                    padding='same',
-                                    kernel_regularizer=keras.regularizers.L2(1e-5),
-                                    kernel_initializer=keras.initializers.VarianceScaling())(x)
-            x = keras.layers.GroupNormalization(groups=-1)(x)
-            x = keras.layers.LeakyReLU()(x)
-        result = keras.layers.Conv2D(N_OUT, KSIZE, padding='same')(x)
-        
-        dx1_model = keras.Model(inputs=[input_x, input_grad, input_dx1], outputs=result, name="dx1_model")
+        input_x        = keras.Input(shape=x_shape, name='x')
+        input_grad     = keras.Input(shape=x_shape, name='grad')
+        input_dx1      = keras.Input(shape=x_shape, name='dx1')
+        dx1_input_list = [input_x, input_grad, input_dx1]
+        dx1_model      = network_base_arch( dx1_input_list, "dx1_model" )
     dx1_model.summary()
 
     ##### DX2 MODEL
@@ -409,29 +326,12 @@ def train_deepopt( dataset, problem, miniter, maxiter, alpha,
             last_epoch = int(lines[0])
         dx2_model = keras.models.load_model( os.path.join( MODEL_PATH, f'epoch_{int(last_epoch)}', 'dx2.keras' ) )
     else:
-        input_x = keras.Input(shape=x_shape, name='x')
-        input_grad = keras.Input(shape=x_shape, name='grad')
-        input_dx2 = keras.Input(shape=x_shape, name='dx2')
-        input_dx1 = keras.Input(shape=x_shape, name='dx1')
-        
-        input_convnet = keras.layers.Concatenate(axis=-1)([input_x, input_grad, input_dx2, input_dx1])
-        
-        FILTERS = 32
-        KSIZE = 3
-        N_OUT = 1
-        N_LAYERS = 2
-        
-        x = keras.layers.GroupNormalization(groups=-1)(input_convnet)
-        for i in range(N_LAYERS):
-            x = keras.layers.Conv2D(FILTERS, KSIZE,
-                                    padding='same',
-                                    kernel_regularizer=keras.regularizers.L2(1e-5),
-                                    kernel_initializer=keras.initializers.VarianceScaling())(x)
-            x = keras.layers.GroupNormalization(groups=-1)(x)
-            x = keras.layers.LeakyReLU()(x)
-        result = keras.layers.Conv2D(N_OUT, KSIZE, padding='same')(x)
-        
-        dx2_model = keras.Model(inputs=[input_x, input_grad, input_dx2, input_dx1], outputs=result, name="dx2_model")
+        input_x        = keras.Input(shape=x_shape, name='x')
+        input_grad     = keras.Input(shape=x_shape, name='grad')
+        input_dx2      = keras.Input(shape=x_shape, name='dx2')
+        input_dx1      = keras.Input(shape=x_shape, name='dx1')
+        dx2_input_list = [input_x, input_grad, input_dx2, input_dx1]
+        dx2_model      = network_base_arch( dx2_input_list, name = "dx2_model" )
     dx2_model.summary()
     ##### SAVING INITIALIZED MODELS
     def save_weights(epoch):
@@ -465,11 +365,11 @@ def train_deepopt( dataset, problem, miniter, maxiter, alpha,
         # Initial point
         x0_train  = tf.zeros( shape = (tf.shape(b_train)[0],) + x_shape, dtype = tf.float32, name = 'x0' )
         # Number of iterations
-        if trained_iterations == 'fixed':
+        if miniter == maxiter:
             n_iter_train = tf.constant( maxiter, dtype = tf.int32, name = 'maxiter' )
         else:
             n_iter_train = tf.random.uniform( shape = [],  minval = miniter, maxval = maxiter + 1, \
-                                                dtype = tf.int32, name = 'maxiter')
+                                              dtype = tf.int32, name = 'maxiter', seed = RANDOM_SEED )
         # Open a GradientTape to record the operations run during the forward pass, which enables auto-differentiation.
         with tf.GradientTape() as tape:
             # Run the forward pass of the layer. The operations that the layer applies to its inputs are going to be recorded on the GradientTape.
@@ -498,15 +398,9 @@ def test_untrained( dataset, problem, mode, algorithm, batch_size, iters, tau = 
 
     ######################### RESULTS' PATH ##################################
     if algorithm == 'fista':
-        RESULT_PATH = os.path.join( os.getcwd(), 'test_results', mode, 'untrained', algorithm, \
-                                    'tau' + str(tau)[2:], dataset, str( dataset_ratio * 100 ) + 'percent', problem )
+        RESULT_PATH = hist_path( 'fista', [ mode, dataset, dataset_ratio, problem, tau ] )
     else:
-        RESULT_PATH = os.path.join( os.getcwd(), 'test_results', mode, 'untrained', algorithm, \
-                                    dataset, str( dataset_ratio * 100 ) + 'percent', problem )
-    
-    if not os.path.exists(RESULT_PATH):
-        os.makedirs( RESULT_PATH )
-        os.makedirs( os.path.join( RESULT_PATH, 'image' ) )
+        RESULT_PATH = hist_path( 'ista', [ mode, dataset, dataset_ratio, problem ] )
 
     Fhist_filename = os.path.join( RESULT_PATH, 'Fhist.npy' )
     if os.path.exists(Fhist_filename):
@@ -578,14 +472,21 @@ def test_untrained( dataset, problem, mode, algorithm, batch_size, iters, tau = 
         rec, hist = test_step( b )
 
         for j in range(b.shape[0]):
-            # Printing results
-            print("Test example ", step * batch_size + j, "------------------------")
-            print("Final loss ", hist[0][j][-1].numpy())
+            if PRINT_FINAL_LOSS:
+                # Printing results
+                print("Test example ", step * batch_size + j, "------------------------")
+                print("Final loss ", hist[0][j][-1].numpy())
 
-            # Saving reconstructions
-            pp.imshow( rec[j,...,0], cmap = 'gray' )
-            pp.savefig( os.path.join( RESULT_PATH, 'image', 'rec' + str(step * batch_size + j) + '.png' ) )
-            pp.close()
+            if SAVE_RECONSTRUCTIONS:
+                # Saving reconstructions
+                pp.imshow( rec[j,...,0], cmap = 'gray' )
+                pp.yticks([])
+                pp.xticks([])
+                pp.ylabel(f'{tf.shape(rec[j,...,0])[0]}')
+                pp.xlabel(f'{tf.shape(rec[j,...,0])[1]}')
+                pp.colorbar()
+                pp.savefig( os.path.join( RESULT_PATH, 'image', 'rec' + str(step * batch_size + j) + '.png' ) )
+                pp.close()
 
         # Saving test info to list
         Fhist_list.append( hist[0].numpy() )
@@ -611,47 +512,10 @@ def test_fista_ld( dataset, problem, mode, miniter, maxiter, alpha, gamma, const
     ds, A, A_adj, A_norm, W, W_adj, W_norm, lam, x_shape = \
             problem_definition( dataset, mode, problem, batch_size, test_dataset_ratio )
 
-    ######################### LOADING MODELS ##################################
-    MODEL_PATH = os.path.join( os.getcwd(), 'params', 'fista-ld', dataset, str( train_dataset_ratio * 100 ) + 'percent', problem )
-    if maxiter == miniter:
-        trained_iterations = 'fixed'
-        MODEL_PATH = os.path.join( MODEL_PATH, 'iters_' + trained_iterations + '_' + str(maxiter) )
-    elif maxiter > miniter:
-        trained_iterations = 'random'
-        MODEL_PATH = os.path.join( MODEL_PATH, 'iters_' + trained_iterations + '_' + str(miniter) + '_' + str(maxiter) ) 
-    else:
-        raise ValueError()
-    if const_tau <= 0:
-        var_tau = True
-        MODEL_PATH = os.path.join( MODEL_PATH, 'alpha' + str(alpha)[2:], 'gamma' + str(gamma)[2:]  )
-    else:
-        var_tau = False
-        MODEL_PATH = os.path.join( MODEL_PATH, 'alpha' + str(alpha)[2:], 'const_tau' + str(const_tau)[2:]  )
-    MODEL_PATH = os.path.join( MODEL_PATH, 'date_' + date )
-
     ######################### RESULTS' PATH ##################################
-    RESULT_PATH = os.path.join( os.getcwd(), 'test_results', mode, 'trained', 'fista-ld', dataset, \
-                                f'{100*train_dataset_ratio}percent_train', \
-                                f'{100*test_dataset_ratio}percent_test', \
-                                problem )
-    if trained_iterations == 'fixed':
-        RESULT_PATH = os.path.join( RESULT_PATH, 'iters_' + trained_iterations + '_' + str(maxiter) )
-    elif trained_iterations == 'random':
-        RESULT_PATH = os.path.join( RESULT_PATH, 'iters_' + trained_iterations + '_' + str(miniter) + '_' + str(maxiter) ) 
-    else:
-        raise ValueError()
-    if const_tau <= 0:
-        var_tau = True
-        RESULT_PATH = os.path.join( RESULT_PATH, 'alpha' + str(alpha)[2:], 'gamma' + str(gamma)[2:] )
-    else:
-        var_tau = False
-        RESULT_PATH = os.path.join( RESULT_PATH, 'alpha' + str(alpha)[2:], 'const_tau' + str(const_tau)[2:] )
-    
-    RESULT_PATH = os.path.join( RESULT_PATH, 'date_' + date )
-    RESULT_PATH = os.path.join( RESULT_PATH, f'epoch_{epochs}' )
-    
-    if not os.path.exists(RESULT_PATH):
-        os.makedirs(RESULT_PATH)
+    RESULT_PATH = hist_path( 'fista-ld',
+                             [ mode, dataset, train_dataset_ratio, test_dataset_ratio,
+                               problem, miniter, maxiter, alpha, gamma, const_tau, date, epochs ] )
 
     Fhist_filename = os.path.join( RESULT_PATH, 'Fhist.npy' )
     if os.path.exists(Fhist_filename):
@@ -686,6 +550,11 @@ def test_fista_ld( dataset, problem, mode, miniter, maxiter, alpha, gamma, const
         os.remove(inner_iter_hist_filename)
 
     ######################### TEST STEP ##################################
+    ##### MODELS' PATH
+    MODEL_PATH = model_path( 'fista-ld',
+                             [dataset, train_dataset_ratio, problem, miniter, maxiter, alpha, gamma, const_tau, date],
+                             load_saved_models = True,
+                             training = False )
     ##### LOADING R0
     R0 = np.load( os.path.join( MODEL_PATH, 'R0.npy' ) )
     ##### LOADING THE MODELS
@@ -695,6 +564,14 @@ def test_fista_ld( dataset, problem, mode, miniter, maxiter, alpha, gamma, const
         dw_model = keras.models.load_model( os.path.join( MODEL_PATH, 'dw.keras') )
     else:
         raise ValueError('This algorithm has not been trained')
+    ##### CHECK TAU SEQUENCE MODE
+    if const_tau <= 0:
+        var_tau = True
+    elif const_tau < 1:
+        var_tau = False
+    else:
+        raise ValueError(f'const_tau must be < 1, but got const_tau={const_tau}')
+    ##### TEST STEP
     if dataset == 'mayo_clinic_512':
         num_detectors = 1000
         num_angles = 1000
@@ -709,7 +586,7 @@ def test_fista_ld( dataset, problem, mode, miniter, maxiter, alpha, gamma, const
         x0  = tf.zeros( shape = (tf.shape(b)[0],) + x_shape, dtype = tf.float32, name = 'x0' )
         # Number of iterations
         n_iter = tf.constant( iters, dtype = tf.int32, name = 'maxiter' )
-        _, _, hist = fista_ld( problem, x0, A, A_adj, A_norm,
+        x, _, hist = fista_ld( problem, x0, A, A_adj, A_norm,
                                b, W, W_adj, W_norm, lam,
                                dy_model, dw_model,
                                n_iter,
@@ -721,7 +598,7 @@ def test_fista_ld( dataset, problem, mode, miniter, maxiter, alpha, gamma, const
                                training = False,
                                save_hist = True
                               )
-        return hist
+        return x, hist
     
     ######################### RUNING OVER DATASET ##################################
     Fhist_list = []
@@ -734,12 +611,24 @@ def test_fista_ld( dataset, problem, mode, miniter, maxiter, alpha, gamma, const
     inner_iter_hist_list = []
     for step, (b,_) in enumerate(ds):
         # Running the algorithm
-        hist = test_step( b )
+        rec, hist = test_step( b )
         
         # Printing results
         for j in range(b.shape[0]):
-            print("Test example ", step * batch_size + j, "------------------------")
-            print("Final loss ", hist[0][j][-1].numpy())
+            if PRINT_FINAL_LOSS:
+                print("Test example ", step * batch_size + j, "------------------------")
+                print("Final loss ", hist[0][j][-1].numpy())
+
+            if SAVE_RECONSTRUCTIONS:
+                # Saving reconstructions
+                pp.imshow( rec[j,...,0], cmap = 'gray' )
+                pp.yticks([])
+                pp.xticks([])
+                pp.ylabel(f'{tf.shape(rec[j,...,0])[0]}')
+                pp.xlabel(f'{tf.shape(rec[j,...,0])[1]}')
+                pp.colorbar()
+                pp.savefig( os.path.join( RESULT_PATH, 'image', 'rec' + str(step * batch_size + j) + '.png' ) )
+                pp.close()
 
         # Saving test info to list
         Fhist_list.append( hist[0].numpy() )
@@ -777,43 +666,10 @@ def test_deepopt( dataset, problem, mode, miniter, maxiter, alpha, epochs, date,
     ds, A, A_adj, A_norm, W, W_adj, W_norm, lam, x_shape = \
             problem_definition( dataset, mode, problem, batch_size, test_dataset_ratio )
 
-    ######################### LOADING MODELS ##################################
-    MODEL_PATH = os.path.join( os.getcwd(), 'params', 'deepopt', dataset, f'{100*train_dataset_ratio}percent', problem )
-    if maxiter == miniter:
-        trained_iterations = 'fixed'
-        MODEL_PATH = os.path.join( MODEL_PATH, 'iters_' + trained_iterations + '_' + str(maxiter) )
-    elif maxiter > miniter:
-        trained_iterations = 'random'
-        MODEL_PATH = os.path.join( MODEL_PATH, 'iters_' + trained_iterations + '_' + str(miniter) + '_' + str(maxiter) ) 
-    else:
-        raise ValueError()
-    MODEL_PATH = os.path.join( MODEL_PATH, 'alpha' + str(alpha)[2:] )
-    MODEL_PATH = os.path.join( MODEL_PATH, 'date_' + date )
-    MODEL_PATH = os.path.join( MODEL_PATH, f'epoch_{epochs}' )
-
-    if os.path.exists(MODEL_PATH):
-        dx1_model = keras.models.load_model( os.path.join( MODEL_PATH, 'dx1.keras') )
-        dx2_model = keras.models.load_model( os.path.join( MODEL_PATH, 'dx2.keras') )
-    else:
-        raise ValueError('This algorithm has not been trained')        
-
     ######################### RESULTS' PATH ##################################
-    RESULT_PATH = os.path.join( os.getcwd(), 'test_results', mode, 'trained', 'deepopt', dataset,\
-                                f'{100*train_dataset_ratio}percent_train', \
-                                f'{100*test_dataset_ratio}percent_test', \
-                                problem )
-    if trained_iterations == 'fixed':
-        RESULT_PATH = os.path.join( RESULT_PATH, 'iters_' + trained_iterations + '_' + str(maxiter) )
-    elif trained_iterations == 'random':
-        RESULT_PATH = os.path.join( RESULT_PATH, 'iters_' + trained_iterations + '_' + str(miniter) + '_' + str(maxiter) ) 
-    else:
-        raise ValueError()
-    RESULT_PATH = os.path.join( RESULT_PATH, 'alpha' + str(alpha)[2:] )
-    RESULT_PATH = os.path.join( RESULT_PATH, 'date_' + date )
-    RESULT_PATH = os.path.join( RESULT_PATH, f'epoch_{epochs}' )
-    
-    if not os.path.exists(RESULT_PATH):
-        os.makedirs(RESULT_PATH)
+    RESULT_PATH = hist_path( 'deepopt',
+                             [ mode, dataset, train_dataset_ratio, test_dataset_ratio,
+                               problem, miniter, maxiter, alpha, date, epochs ] )
 
     Fhist_filename = os.path.join( RESULT_PATH, 'Fhist.npy' )
     if os.path.exists(Fhist_filename):
@@ -836,6 +692,18 @@ def test_deepopt( dataset, problem, mode, miniter, maxiter, alpha, epochs, date,
         os.remove(dx2ubhist_filename)
 
     ######################### TEST STEP ##################################
+    ##### MODELS' PATH
+    MODEL_PATH = model_path( 'deepopt',
+                             [dataset, train_dataset_ratio, problem, miniter, maxiter, alpha, date],
+                             load_saved_models = True,
+                             training = False )
+    MODEL_PATH = os.path.join( MODEL_PATH, f'epoch_{epochs}' )
+    ##### LOADING THE MODELS
+    if os.path.exists(MODEL_PATH):
+        dx1_model = keras.models.load_model( os.path.join( MODEL_PATH, 'dx1.keras') )
+        dx2_model = keras.models.load_model( os.path.join( MODEL_PATH, 'dx2.keras') )
+    else:
+        raise ValueError('This algorithm has not been trained')       
     ##### TEST STEP
     if dataset == 'mayo_clinic_512':
         num_detectors = 1000
@@ -851,10 +719,10 @@ def test_deepopt( dataset, problem, mode, miniter, maxiter, alpha, epochs, date,
         x0  = tf.zeros( shape = (tf.shape(b)[0],) + x_shape, dtype = tf.float32, name = 'x0' )
         # Number of iterations
         n_iter = tf.constant( iters, dtype = tf.int32, name = 'maxiter' )
-        _, _, hist = deepopt_nonsmooth( problem, x0, A, A_adj, A_norm, b, W, W_adj, W_norm, lam,
+        x, _, hist = deepopt_nonsmooth( problem, x0, A, A_adj, A_norm, b, W, W_adj, W_norm, lam,
                                         dx1_model, dx2_model, n_iter, tf.constant(alpha, dtype=tf.float32),
                                         training = False, save_hist = True )
-        return hist
+        return x, hist
     
     ######################### RUNING OVER DATASET ##################################
     Fhist_list = []
@@ -864,16 +732,27 @@ def test_deepopt( dataset, problem, mode, miniter, maxiter, alpha, epochs, date,
     dx2ubhist_list = []
     for step, (b,_) in enumerate(ds):
         # Running the algorithm
-        hist = test_step( b )
+        rec, hist = test_step( b )
         
         # Printing results
         for j in range(b.shape[0]):
-            print("Test example ", step * batch_size + j, "------------------------")
-            print("Final loss ", hist[0][j][-1].numpy())
+            if PRINT_FINAL_LOSS:
+                print("Test example ", step * batch_size + j, "------------------------")
+                print("Final loss ", hist[0][j][-1].numpy())
+
+            if SAVE_RECONSTRUCTIONS:
+                # Saving reconstructions
+                pp.imshow( rec[j,...,0], cmap = 'gray' )
+                pp.yticks([])
+                pp.xticks([])
+                pp.ylabel(f'{tf.shape(rec[j,...,0])[0]}')
+                pp.xlabel(f'{tf.shape(rec[j,...,0])[1]}')
+                pp.colorbar()
+                pp.savefig( os.path.join( RESULT_PATH, 'image', 'rec' + str(step * batch_size + j) + '.png' ) )
+                pp.close()
 
         # Saving test info to list
         Fhist_list.append( hist[0].numpy() )
-
         dx1hist_list.append( hist[1].numpy() )
         dx1ubhist_list.append( hist[2].numpy() )
         dx2hist_list.append( hist[3].numpy() )
@@ -890,121 +769,3 @@ def test_deepopt( dataset, problem, mode, miniter, maxiter, alpha, epochs, date,
         np.save( f, np.concatenate( dx2hist_list, axis = 0 ) )
     with open( dx2ubhist_filename, 'wb' ) as f:
         np.save( f, np.concatenate( dx2ubhist_list, axis = 0 ) )
-
-
-#######################################################################################################################
-########################################## RUNNING TRAIN AND TEST ROUTINES ############################################
-#######################################################################################################################
-
-##### TRAINING - TESTING PARAMETERS
-DATASET             = 'mayo_clinic_128'   # 'mayo_clinic_128' or 'mayo_clinic_512'
-PROBLEM             = 'lasso'             # 'nnls' or 'lasso' or 'slasso' or 'nnslasso'
-TRAIN_BATCH_SIZE    = 1
-EPOCHS_TO_SAVE      = [ 20 ]
-EPOCHS              = max(EPOCHS_TO_SAVE)
-DATE                = datetime.today().strftime('%Y-%m-%d')
-# DATE                = '2026-05-23'
-LOAD_SAVED_MODELS   = False
-MINITER             = [  1 ]
-MAXITER             = [ 20 ]
-
-TEST_MODE           = 'val' # 'test' or 'val'
-TEST_ITERS          = 1000
-TEST_BATCH_SIZE     = 10
-
-TRAIN_DATASET_RATIO = [ 0.05 ]
-TEST_DATASET_RATIO  = [0.05] * len(TRAIN_DATASET_RATIO)
-DATASET_RATIO = list( zip( TRAIN_DATASET_RATIO, TEST_DATASET_RATIO ) )
-
-start = time.time()
-
-#### TEST UNTRAINED ALGORITHMS
-# FISTA PARAMETER
-# TAU_FISTA_UNTRAINED = [ 0.1, 0.25, 0.5, 0.75, 0.9 ]
-TAU_FISTA_UNTRAINED = [ 1.0 ]
-for dataset_ratio in set(TEST_DATASET_RATIO):
-    print(f'Testing ISTA with {100*dataset_ratio} percent of data')
-    test_untrained( DATASET, PROBLEM, TEST_MODE, 'ista', TEST_BATCH_SIZE, TEST_ITERS, dataset_ratio = dataset_ratio )
-    for tau_fista in TAU_FISTA_UNTRAINED:
-        print(f'Testing FISTA (tau={tau_fista}) with {100*dataset_ratio} percent of data')
-        test_untrained( DATASET, PROBLEM, TEST_MODE, 'fista', TEST_BATCH_SIZE, TEST_ITERS, tau = tau_fista, dataset_ratio = dataset_ratio )
-
-### TRAINING - TESTING FISTA-LD -- set a negative const_tau to enable varying tau
-# # train and test all possible combinations
-# ALPHA       = np.logspace(-3.5, -1.5, 5)
-# GAMMA       = [ 0.01, 0.025, 0.05, 0.075, 0.1 ]
-# CONST_TAU   = [ -1.0, -1.0, -1.0, -1.0, -1.0 ]
-# PARAMS      = list( product( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
-# train and test the listed combinations
-ALPHA     = [ 10**(-2.5) ]
-GAMMA     = [ 0.05 ]
-CONST_TAU = [ -1.0 ]
-PARAMS    = list( zip( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
-for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)), PARAMS ) ):
-    dataset_ratio, iters, params = options
-    train_dataset_ratio, test_dataset_ratio = dataset_ratio
-    alpha, gamma_const_tau = params
-    gamma, const_tau = gamma_const_tau
-    miniter, maxiter = iters
-
-    label = 'FISTA-LD ' + str(i+1) + ': '
-    label += f'N=[{miniter},{maxiter}], '
-    label += f'alpha={alpha}, '
-    if const_tau <= 0:
-        label += f'gamma={gamma}, '
-    else:
-        label += f'tau={const_tau}, '
-    label += f'data_ratio={train_dataset_ratio}'
-
-    print('Training ' + label)
-    train_fista_ld( DATASET, PROBLEM, miniter, maxiter, alpha, gamma, const_tau,
-                    EPOCHS, TRAIN_BATCH_SIZE, DATE, LOAD_SAVED_MODELS,
-                    dataset_ratio = train_dataset_ratio, epochs_to_save = EPOCHS_TO_SAVE )
-    
-    for epochs in EPOCHS_TO_SAVE:
-        print('Testing ' + label + f' trained with {epochs} epochs')
-        test_fista_ld( DATASET, PROBLEM, TEST_MODE, miniter, maxiter, alpha, gamma, const_tau, epochs,
-                       TEST_BATCH_SIZE, TEST_ITERS, DATE, dataset_ratio = dataset_ratio )
-
-
-##### TRAINING - TESTING DEEPOPT
-ALPHA_DO = [ 0.5 ]
-# ALPHA_DO = [ 0.1, 0.25, 0.5, 0.75, 0.9 ]
-for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)), ALPHA_DO ) ):
-    dataset_ratio, iters, alpha = options
-    train_dataset_ratio, test_dataset_ratio = dataset_ratio
-    miniter, maxiter = iters
-
-    label = 'DeepOpt ' + str(i+1) + ': '
-    label += f'N=[{miniter},{maxiter}], '
-    label += f'alpha={alpha}, '
-    label += f'data_ratio={train_dataset_ratio}'
-
-    print('Training ' + label)
-    train_deepopt( DATASET, PROBLEM, miniter, maxiter, alpha,
-                   EPOCHS, TRAIN_BATCH_SIZE, DATE, LOAD_SAVED_MODELS,
-                   dataset_ratio = train_dataset_ratio, epochs_to_save = EPOCHS_TO_SAVE )
-    
-    for epochs in EPOCHS_TO_SAVE:
-        print('Testing ' + label + f' trained with {epochs} epochs')
-        test_deepopt( DATASET, PROBLEM, TEST_MODE, miniter, maxiter, alpha, epochs, DATE,
-                      TEST_BATCH_SIZE, TEST_ITERS, dataset_ratio = dataset_ratio )
-
-    
-######################### PRINTING MEMORY USAGE INFO ####################################
-print('--------------------------------------------------------------------------------')
-print('--------------------------------------------------------------------------------')
-tf.test.experimental.sync_devices()
-print('Elapsed time: ', )
-print( f'    {time.time() - start:.2e}s', )
-print('GPU memory usage:')
-if tf.config.get_visible_devices('GPU') != []:
-    print( '    Current:', tf.config.experimental.get_memory_info('GPU:0')['current'] / 1e6, 'MB' )
-    print( '    Peak:',  tf.config.experimental.get_memory_info('GPU:0')['peak'] / 1e6, 'MB' )
-else:
-    print('GPU not visible')
-print('CPU memory usage:')
-print( '    Current:', tf.config.experimental.get_memory_info('CPU:0')['current'] / 1e6, 'MB' )
-print( '    Peak:',  tf.config.experimental.get_memory_info('CPU:0')['peak'] / 1e6, 'MB' )
-print('--------------------------------------------------------------------------------')
-print('--------------------------------------------------------------------------------')
