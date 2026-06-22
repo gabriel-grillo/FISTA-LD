@@ -12,7 +12,7 @@ import plots_and_metrics as pm
 
 ######################### TRAINING - TESTING PARAMETERS ##################################
 TEST_MODE           = 'val'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 TEST_DATASET_RATIO  = 0.05
 PROBLEM             = 'lasso'
 
@@ -57,16 +57,14 @@ iters = mean_rel_opt_gap_dicts[0].get('data').shape[0]
 mean_rel_opt_gap_dicts = [ dict( data = 6000/(1 + np.arange(iters))**2, label = '$O(1/k^2)$', ls = ':', c = 'k' ) ] + mean_rel_opt_gap_dicts
 #### STACKING THE X-COORDINATE
 mean_rel_opt_gap_dicts = [ dict( data = 1 + np.arange(iters), label = '$k+1$', ls = None, c = None ) ] + mean_rel_opt_gap_dicts
-#### SAVING RESULTS
-results_matrix = np.stack( [ d.get('data') for d in mean_rel_opt_gap_dicts ] ).T
-np.savetxt( os.path.join( DATA_PATH, 'optgap.txt' ), results_matrix )
-with open( os.path.join( DATA_PATH, 'optgap_labels.txt' ), 'w' ) as f:
-    for d in mean_rel_opt_gap_dicts:
-        f.write(f"{d.get('label')}\n")
 #### PLOTTING
-pm.plot_data( mean_rel_opt_gap_dicts,
-              ylabel = r'$\mean_b\left(\frac{F_b(x_{b,k})-F_b^*}{F_b^*}\right)$',
-              fig_path = DATA_PATH, fig_name = 'optgap' )
+optgap_fig = pm.plot_data( mean_rel_opt_gap_dicts,
+                           ylabel = r'$\mean_b\left(\frac{F_b(x_{b,k})-F_b^*}{F_b^*}\right)$',
+                           fig_path = DATA_PATH, fig_name = 'optgap' )
+#### ADDING MARKS AT THE X-AXIS WHERE THE PROXIMAL OPERATOR SOLVER STARTS TO FAIL
+flag_dicts = pm.load_data( 'flag_hist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE,
+                           TAU_FISTA_UNTRAINED, FISTA_LD_LIST, DEEPOPT_LIST )
+pm.add_marks( flag_dicts, optgap_fig, fig_path = DATA_PATH, fig_name = 'optgap_w_marks' )
 
 ######################### PLOTTING MEAN (F-F*)/F* -- only trained iterations ##################################
 #### COPYING (F-F*)/F* DICTS AND UPDATING DATA
@@ -76,71 +74,179 @@ for i,d in enumerate(zoom_mean_rel_opt_gap_dicts):
 #### PLOTTING
 pm.plot_data( zoom_mean_rel_opt_gap_dicts,
               ylabel = r'$\mean_b\left(\frac{F_b(x_{b,k})-F_b^*}{F_b^*}\right)$',
-              fig_path = DATA_PATH, fig_name = 'optgap_zoom' )
+              fig_path = DATA_PATH, fig_name = 'optgapzoom' )
+
+######################### TRAINED ALGORITHMS' MEAN VALIDATION LOSS AND PENALTY ##################################
+if len(FISTA_LD_LIST) > 0 or len(DEEPOPT_LIST) > 0:
+    val_loss, penalty, metrics_label_list = pm.compute_metrics( TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM,
+                                                                DATE, FISTA_LD_LIST, DEEPOPT_LIST )
+    pm.print_metrics_analysis( val_loss, penalty, metrics_label_list, table_path = DATA_PATH, table_name = 'metrics_table' )
+
+######################### PLOTTING EXTRA INFORMATION ##################################
+if not os.path.exists(os.path.join( DATA_PATH, 'extra' )):
+    os.makedirs(os.path.join( DATA_PATH, 'extra' ))
 
 ######################### PLOTTING MEAN R ##################################
 #### LOADING R DATA
 R_dicts = pm.load_data( 'Rhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE,
                         TAU_FISTA_UNTRAINED, FISTA_LD_LIST, [] )
-#### COMPUTING MEAN R
-R_mean_dicts = pm.compute_mean( R_dicts )
-#### STACKING O(1/k**2)
-iters = R_mean_dicts[0].get('data').shape[0]
-R_mean_dicts = [ dict( data = 1e+6/(1 + np.arange(iters))**2, label = '$O(1/k^2)$', ls = ':', c = 'k' ) ] + R_mean_dicts
-#### STACKING O(1/k**3)
-R_mean_dicts = [ dict( data = 1e+9/(1 + np.arange(iters))**3, label = '$O(1/k^3)$', ls = '--', c = 'k' ) ] + R_mean_dicts
-#### STACKING THE X-COORDINATE
-R_mean_dicts = [ dict( data = 1 + np.arange(iters), label = '$k+1$', ls = None, c = None ) ] + R_mean_dicts
-#### SAVING RESULTS
-results_matrix = np.stack( [ d.get('data') for d in R_mean_dicts ] ).T
-np.savetxt( os.path.join( DATA_PATH, 'R.txt' ), results_matrix )
-with open( os.path.join( DATA_PATH, 'R_labels.txt' ), 'w' ) as f:
-    for d in R_mean_dicts:
-        f.write(f"{d.get('label')}\n")
-#### PLOTTING
-pm.plot_data( R_mean_dicts,
-              ylabel = r'$\mean_b\left(R_{b,k}\right)$',
-              fig_path = DATA_PATH, fig_name = 'R' )
+if len(R_dicts) > 0:
+    #### COMPUTING MEAN R
+    R_mean_dicts = pm.compute_mean( R_dicts )
+    #### STACKING O(1/k**2)
+    iters = R_mean_dicts[0].get('data').shape[0]
+    R_mean_dicts = [ dict( data = 1e+6/(1 + np.arange(iters))**2, label = '$O(1/k^2)$', ls = ':', c = 'k' ) ] + R_mean_dicts
+    #### STACKING O(1/k**3)
+    R_mean_dicts = [ dict( data = 1e+9/(1 + np.arange(iters))**3, label = '$O(1/k^3)$', ls = '--', c = 'k' ) ] + R_mean_dicts
+    #### STACKING THE X-COORDINATE
+    R_mean_dicts = [ dict( data = 1 + np.arange(iters), label = '$k+1$', ls = None, c = None ) ] + R_mean_dicts
+    #### PLOTTING
+    pm.plot_data( R_mean_dicts,
+                ylabel = r'$\mean_b\left(R_{b,k}\right)$',
+                fig_path = os.path.join( DATA_PATH, 'extra' ), fig_name = 'R' )
+
+######################### DEVIATIONS' INFO ##################################
+#### LOADING dy DATA -- FISTA-LD
+dy_norm_dicts = pm.load_data( 'dyhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], FISTA_LD_LIST, [] )
+dyub_norm_dicts = pm.load_data( 'dyubhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], FISTA_LD_LIST, [] )
+#### LOADING dw DATA -- FISTA-LD
+dw_norm_dicts = pm.load_data( 'dwhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], FISTA_LD_LIST, [] )
+dwub_norm_dicts = pm.load_data( 'dwubhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], FISTA_LD_LIST, [] )
+#### LOADING dx1 DATA -- DEEPOPT
+dx1_norm_dicts = pm.load_data( 'dx1hist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], [], DEEPOPT_LIST )
+dx1ub_norm_dicts = pm.load_data( 'dx1ubhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], [], DEEPOPT_LIST )
+#### LOADING dx2 DATA -- DEEPOPT
+dx2_norm_dicts = pm.load_data( 'dx2hist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], [], DEEPOPT_LIST )
+dx2ub_norm_dicts = pm.load_data( 'dx2ubhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], [], DEEPOPT_LIST )
+#### STACKING ALL DATA
+d_norm_dicts = dy_norm_dicts + dw_norm_dicts + dx1_norm_dicts + dx2_norm_dicts
+d_ub_norm_dicts = dyub_norm_dicts + dwub_norm_dicts + dx1ub_norm_dicts + dx2ub_norm_dicts
 
 ######################### PLOTTING DEVIATION NORMS ##################################
-#### LOADING |dy| DATA -- FISTA-LD
-dy_norm_dicts = pm.compute_mean( pm.load_data( 'dyhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], FISTA_LD_LIST, [] ) )
-#### LOADING |dw| DATA -- FISTA-LD
-dw_norm_dicts = pm.compute_mean( pm.load_data( 'dwhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], FISTA_LD_LIST, [] ) )
-#### LOADING |dx1| DATA -- DEEPOPT
-dx1_norm_dicts = pm.compute_mean( pm.load_data( 'dx1hist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], [], DEEPOPT_LIST ) )
-#### LOADING |dx2| DATA -- DEEPOPT
-dx2_norm_dicts = pm.compute_mean( pm.load_data( 'dx2hist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, [], [], DEEPOPT_LIST ) )
-#### STACKING ALL DEVIATIONS
-d_norms = dy_norm_dicts + dw_norm_dicts + dx1_norm_dicts + dx2_norm_dicts
-#### STACKING O(1/k)
-iters = d_norms[0].get('data').shape[0]
-d_norms = [ dict( data = 1e+3/(1 + np.arange(iters)), label = '$O(1/k)$', ls = ':', c = 'k' ) ] + d_norms
-#### STACKING O(1/k**1.5)
-d_norms = [ dict( data = 3e+2/(1 + np.arange(iters)), label = r'$O(1/k^{1.5})$', ls = '-.', c = 'k' ) ] + d_norms
-#### STACKING THE X-COORDINATE
-d_norms = [ dict( data = 1 + np.arange(iters), label = '$k$', ls = None, c = None ) ] + d_norms
-#### PLOTTING
-pm.plot_data( d_norms,
-              ylabel = r'$\mean_b\left(\|\text{deviation}_{b,k}\|_2\right)$',
-              fig_path = DATA_PATH, fig_name = 'deviations_norm' )
+if len(d_norm_dicts) > 0:
+    #### COMPUTING MEAN VALUE
+    d_norms = pm.compute_mean( d_norm_dicts )
+    #### STACKING O(1/k)
+    iters = d_norms[0].get('data').shape[0]
+    d_norms = [ dict( data = 1e+3/(1 + np.arange(iters)), label = '$O(1/k)$', ls = ':', c = 'k' ) ] + d_norms
+    #### STACKING O(1/k**1.5)
+    d_norms = [ dict( data = 3e+2/(1 + np.arange(iters)), label = r'$O(1/k^{1.5})$', ls = '-.', c = 'k' ) ] + d_norms
+    #### STACKING THE X-COORDINATE
+    d_norms = [ dict( data = 1 + np.arange(iters), label = '$k$', ls = None, c = None ) ] + d_norms
+    #### PLOTTING
+    pm.plot_data( d_norms,
+                ylabel = r'$\mean_b\left(\|\text{deviation}_{b,k}\|_2\right)$',
+                fig_path = os.path.join( DATA_PATH, 'extra' ), fig_name = 'deviations_norm' )
 
 ######################### PLOTTING UPPER BOUNDS TO DEVIATION NORMS ##################################
-## TO DO
+if len(d_ub_norm_dicts) > 0:
+    #### COMPUTING MEAN VALUE
+    d_ub_norms = pm.compute_mean( d_ub_norm_dicts )
+    #### STACKING O(1/k)
+    iters = d_ub_norms[0].get('data').shape[0]
+    d_ub_norms = [ dict( data = 1e+3/(1 + np.arange(iters)), label = '$O(1/k)$', ls = ':', c = 'k' ) ] + d_ub_norms
+    #### STACKING O(1/k**1.5)
+    d_ub_norms = [ dict( data = 3e+2/(1 + np.arange(iters)), label = r'$O(1/k^{1.5})$', ls = '-.', c = 'k' ) ] + d_ub_norms
+    #### STACKING THE X-COORDINATE
+    d_ub_norms = [ dict( data = 1 + np.arange(iters), label = '$k$', ls = None, c = None ) ] + d_ub_norms
+    #### PLOTTING
+    pm.plot_data( d_ub_norms,
+                ylabel = r'$\mean_b\left(\|\text{deviation}_{b,k}\|_2\text{ upper bound}\right)$',
+                fig_path = os.path.join( DATA_PATH, 'extra' ), fig_name = 'deviations_norm_upper_bound' )
 
 ######################### PLOTTING DEVIATION NORMS REL TO UPPER BOUNDS ##################################
-## TO DO
+if len(d_ub_norm_dicts) > 0 and len(d_norm_dicts) > 0:
+    #### COMPUTING THE RATIO DEVIATION NORM / UPPER BOUND
+    d_ratio_norm_dicts = [ d.copy() for d in d_norm_dicts ]
+    for i,d in enumerate(d_ratio_norm_dicts):
+        d.update( { 'data': d_norm_dicts[i].get('data') / d_ub_norm_dicts[i].get('data') } )
+    #### COMPUTING MEAN VALUE
+    d_ratio_norms = pm.compute_mean( d_ratio_norm_dicts )
+    #### STACKING THE X-COORDINATE
+    iters = d_ub_norms[0].get('data').shape[0]
+    d_ratio_norms = [ dict( data = 1 + np.arange(iters), label = '$k$', ls = None, c = None ) ] + d_ratio_norms
+    #### PLOTTING
+    pm.plot_data( d_ratio_norms,
+                ylabel = r'$\mean_b\left( \frac{\|\text{deviation}_{b,k}\|_2}{\|\text{deviation}_{b,k}\|_2\text{ upper bound}} \right)$',
+                fig_path = os.path.join( DATA_PATH, 'extra' ), fig_name = 'deviations_ratio', yscale = 'linear' )
 
-######################### TABLE 1 ##################################
-## TO DO
+######################### PLOTTING MEAN INNER ITERS ##################################
+#### LOADING INNER ITERS DATA
+inner_iter_dicts = pm.load_data( 'inner_iter_hist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE, 
+                                 TAU_FISTA_UNTRAINED, FISTA_LD_LIST, DEEPOPT_LIST )
+if len(inner_iter_dicts) > 0:
+    #### COMPUTING MEAN VALUE
+    mean_inner_iter_dicts = pm.compute_mean( inner_iter_dicts )
+    #### STACKING O(1/k**2)
+    iters = mean_inner_iter_dicts[0].get('data').shape[0]
+    
+    mean_inner_iter_dicts = [ dict( data = np.concatenate( [ (1 + np.arange(4))**2, [np.nan]*(iters-4) ] ),
+                                    label = '$O(k^2)$', ls = ':', c = 'k' ) ] + mean_inner_iter_dicts
+    #### STACKING THE X-COORDINATE
+    mean_inner_iter_dicts = [ dict( data = 1 + np.arange(iters), label = '$k$', ls = None, c = None ) ] + mean_inner_iter_dicts
+    #### PLOTTING
+    pm.plot_data( mean_inner_iter_dicts,
+                ylabel = r'$\mean_b\left( \text{inner\_iters}_{b,k} \right)$',
+                fig_path = os.path.join( DATA_PATH, 'extra' ), fig_name = 'inner_iters' )
+    
+######################### PLOTTING MEAN CUMULATIVE INNER ITERS ##################################
+if len(inner_iter_dicts) > 0:
+    #### COMPUTING THE COMULATIVE INNER ITERS
+    cum_inner_iter_dicts = [ d.copy() for d in inner_iter_dicts ]
+    for i,d in enumerate(cum_inner_iter_dicts):
+        d.update( { 'data': np.cumsum( inner_iter_dicts[i].get('data'), axis = 1 ) } )
+    #### COMPUTING MEAN VALUE
+    mean_cum_inner_iter_dicts = pm.compute_mean( cum_inner_iter_dicts )
+    #### STACKING THE X-COORDINATE
+    iters = mean_cum_inner_iter_dicts[0].get('data').shape[0]
+    mean_cum_inner_iter_dicts = [ dict( data = 1 + np.arange(iters), label = '$k$', ls = None, c = None ) ] + mean_cum_inner_iter_dicts
+    #### PLOTTING
+    pm.plot_data( mean_cum_inner_iter_dicts,
+                  ylabel = r'$\mean_b\left( \text{cum\_inner\_iters}_{b,k} \right)$',
+                  fig_path = os.path.join( DATA_PATH, 'extra' ), fig_name = 'cum_inner_iters' )
+    
+######################### PERFORMANCE PROFILE ##################################
+#### SETTING TOLERANCE FOR (F-F*)/F*
+tol = 1e-1
+#### LOADING F DATA
+F_dicts = pm.load_data( 'Fhist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE,
+                        TAU_FISTA_UNTRAINED, FISTA_LD_LIST, DEEPOPT_LIST )
+if len(F_dicts) > 1:
+    #### COMPUTING F*
+    F_hist = np.stack( [ d.get('data') for d in F_dicts ] )
+    F_opt = np.min( np.min( F_hist , axis = 2 ), axis = 0 )
+    F_opt = F_opt[:,None]
+    #### COMPUTING THE FIRST ITERATION IN WHICH THE TOLERANCE IS MET
+    perf_list = []
+    for i,d in enumerate(F_dicts):
+        mask = ( F_dicts[i].get('data') - F_opt ) / F_opt < tol
+        tol_iter = np.inf * np.ones( (mask.shape[0],) )
+        for j,m in enumerate(mask):
+            tol_iter[j] = np.argmax(m) if np.any(m) else np.inf
+        perf_list.append(tol_iter)
+    #### PERFORMANCE MATRIX
+    perf_mat = np.stack( perf_list )
+    algorithms, problem_instances = perf_mat.shape
+    #### COMPUTING KAPPAS
+    min_perf_mat = np.min( perf_mat, axis = 0 )
+    max_perf_mat = np.max( perf_mat, axis = 0, where=perf_mat!=np.inf, initial=-1.0 )
+    kappas = np.linspace( 1, 1.01 * np.max( max_perf_mat / min_perf_mat ), num = 500 ) # multiply by 1.01 to avoid missing the maxcost in the plot by numerical reasons
+    #### COMPUTING THE FRACTION OF PROBLEM INSTANCES FOR EACH KAPPA
+    fractions_to_plot = np.zeros( (algorithms, kappas.size) )
+    for i in range(algorithms):
+        for l,kappa in enumerate(kappas):
+            fractions_to_plot[i,l] = np.sum( perf_mat[i] <= kappa * min_perf_mat ) / problem_instances
+    #### CREATING DICTIONARIES
+    perf_dicts = [ d.copy() for d in F_dicts ]
+    for i,d in enumerate(perf_dicts):
+        d.update( { 'data': fractions_to_plot[i] } )
+    #### STACKING THE X-COORDINATE (KAPPAS)
+    perf_dicts = [ dict( data = kappas, label = r'$\kappa$', ls = None, c = None ) ] + perf_dicts
+    #### PLOTTING
+    pm.plot_data( perf_dicts,
+                  ylabel = r'$\Gamma(\kappa)$',
+                  fig_path = os.path.join( DATA_PATH, 'extra' ),
+                  fig_name = 'perf_profile',
+                  xscale = 'linear', yscale = 'linear' )
 
-######################### TRAINED ALGORITHMS' MEAN VALIDATION LOSS AND PENALTY ##################################
-val_loss, penalty, metrics_label_list = pm.compute_metrics( TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM,
-                                                            DATE, FISTA_LD_LIST, DEEPOPT_LIST )
-pm.print_metrics_analysis( val_loss, penalty, metrics_label_list, table_path = DATA_PATH, table_name = 'metrics_table' )
-
-######################### LSTV ANALYSIS ##################################
-## TO DO
-
-
-print( 'All data was saved to:', DATA_PATH )
+print( 'All data was saved to', DATA_PATH )

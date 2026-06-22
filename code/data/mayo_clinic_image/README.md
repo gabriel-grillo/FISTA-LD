@@ -1,8 +1,8 @@
 # Instructions for data
 
-For the experiments we used the data from the *AAPM Low Dose CT Grand Challenge Dataset* [[1]](#1)[[2]](#2).
+The experiments use data from the *AAPM Low Dose CT Grand Challenge Dataset* [[1]](#1)[[2]](#2).
 
-In this subdirectory, you must unzip "full_3mm.zip", which can be downloaded at https://aapm.app.box.com/s/eaw4jddb53keg1bptavvvd1sf4x3pe9h/file/856956352254 (Accessed: 2026-05-31).
+In this subdirectory, extract `full_3mm.zip`, which can be downloaded from https://aapm.app.box.com/s/eaw4jddb53keg1bptavvvd1sf4x3pe9h/file/856956352254 (Accessed: 2026-05-31).
 
 ## References
 <a id="1">[1]</a> 

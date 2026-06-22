@@ -44,7 +44,7 @@ def problem_definition( dataset, mode, problem, batch_size, dataset_ratio ):
     
     ###### REFERENCE FUNCTIONAL VALUES FOR TRAINING
     if problem == 'lstv':
-        alpha_FISTA   = tf.constant( 10**(-2.5), dtype = tf.float32 )
+        alpha_FISTA   = tf.constant( 10**(-3.0), dtype = tf.float32 )
         R0_FISTA      = tf.constant(       1e+7, dtype = tf.float32 )
         tau_FISTA     = tf.constant(        0.5, dtype = tf.float32 )
         maxiter_FISTA = tf.constant(        200, dtype = tf.int32   )
@@ -418,7 +418,7 @@ def test_untrained( dataset, problem, mode, algorithm, batch_size, iters, tau = 
     ######################### TEST STEP ##################################
     if algorithm == 'fista':
         if problem == 'lstv':
-            alpha_FISTA = tf.constant( 10**(-2.5), dtype = tf.float32 )
+            alpha_FISTA = tf.constant( 10**(-3.0), dtype = tf.float32 )
             R0_FISTA    = tf.constant(       1e+7, dtype = tf.float32 )
         else:
             alpha_FISTA = tf.constant(  1.0, dtype = tf.float32 )

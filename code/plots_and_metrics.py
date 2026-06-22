@@ -101,18 +101,45 @@ def load_data( data_name, test_mode, dataset, test_dataset_ratio, problem, date,
         )
     return dicts_list
 
-def plot_data( dicts_list, ylabel, fig_path, fig_name ):
+def save_data( dicts_list, data_path, data_name ):
+    data_matrix = np.stack( [ d.get('data') for d in dicts_list ] ).T
+    np.savetxt( os.path.join( data_path, data_name + '.txt' ), data_matrix )
+    with open( os.path.join( data_path, data_name + '_labels.txt' ), 'w' ) as f:
+        for d in dicts_list:
+            f.write(f"{d.get('label')}\n")
+
+def plot_data( dicts_list, ylabel, fig_path, fig_name, xscale = 'log', yscale = 'log' ):
     x = dicts_list[0]
     for y in dicts_list[1:]:
         pp.plot( x.get('data'), y.get('data'), label = y.get('label'), ls = y.get('ls'), c = y.get('c') )
-    pp.xscale( 'log' )
-    pp.yscale( 'log' )
+    pp.xscale( xscale )
+    pp.yscale( yscale )
     pp.xlabel( x.get('label') )
     pp.ylabel( ylabel )
     pp.grid()
     pp.legend( loc = 'center left', bbox_to_anchor = ( 1, 0.5 ) )
     pp.savefig( os.path.join( fig_path, fig_name + EXTENSION ) )
+    fig = pp.gcf()
     pp.close()
+    save_data( dicts_list, data_path = fig_path, data_name = fig_name )
+    return fig
+
+def add_marks( dicts_list, fig, fig_path, fig_name ):
+    flag_iter_dicts = [ d.copy() for d in dicts_list ]
+    for i,d in enumerate(flag_iter_dicts):
+        mask = np.logical_not( dicts_list[i].get('data') )
+        fail_iter = np.zeros( (mask.shape[0],) )
+        for j,m in enumerate(mask):
+            fail_iter[j] = np.argmax(m) if np.any(m) else np.inf
+        if np.all( fail_iter == np.inf ):
+            d.update( { 'data': -1 } )
+        else:
+            d.update( { 'data': np.round( np.mean( fail_iter, where = fail_iter != np.inf ) ) } )
+    ax = fig.gca()
+    for d in flag_iter_dicts:
+        ax.axvline( d.get('data'), alpha = 0.5, label = f'prox failure ' + d.get('label'), ls = d.get('ls'), c = d.get('c') )
+    fig.savefig( os.path.join( fig_path, fig_name + EXTENSION ) )
+    save_data( flag_iter_dicts, fig_path, 'prox_fail' )
 
 def compute_mean( dicts_list, axis = 0 ):
     mean_dicts_list = [ d.copy() for d in dicts_list ]

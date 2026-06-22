@@ -13,26 +13,8 @@ tf.keras.utils.set_random_seed(42)
 # Enabling operations determinism
 tf.config.experimental.enable_op_determinism()
 # GPU settings
-TRAIN_ON_GPU     = True
-MEMORY_GROWTH    = False
-TOTAL_GPU_MEMORY = 4096
-if TRAIN_ON_GPU:
-    gpus = tf.config.list_physical_devices( 'GPU' )
-    if gpus:
-        # Setting memory growth
-        try:
-            # Currently, memory growth needs to be the same across GPUs
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth( gpu, MEMORY_GROWTH )
-        except RuntimeError as e:
-            # Memory growth must be set before GPUs have been initialized
-            print(e)
-        # Setting memory limit
-        tf.config.set_logical_device_configuration(
-            gpus[0],
-            [ tf.config.LogicalDeviceConfiguration( memory_limit = TOTAL_GPU_MEMORY * 0.80 ) ]
-        )
-else:
+TRAIN_ON_GPU = True
+if not TRAIN_ON_GPU:
     tf.config.set_visible_devices( [], 'GPU' )
 
 from traintest import test_untrained, train_fista_ld, test_fista_ld, train_deepopt, test_deepopt
@@ -42,7 +24,7 @@ from traintest import test_untrained, train_fista_ld, test_fista_ld, train_deepo
 #######################################################################################################
 
 ##### TRAINING - TESTING PARAMETERS
-DATASET             = 'mayo_clinic_128'   # 'mayo_clinic_128' or 'mayo_clinic_512'
+DATASET             = 'mayo_clinic_512'   # 'mayo_clinic_128' or 'mayo_clinic_512'
 PROBLEM             = 'lasso'             # 'nnls' or 'lasso' or 'slasso' or 'nnslasso'
 DATE                = datetime.today().strftime('%Y-%m-%d')
 

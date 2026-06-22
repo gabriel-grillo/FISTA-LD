@@ -21,8 +21,7 @@ print('-------------------------------------------------------------------------
 
 ######################### TRAINING - TESTING PARAMETERS ##################################
 TEST_MODE           = 'val'
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 TEST_DATASET_RATIO  = 1.0
 PROBLEM             = 'lasso'
 
@@ -63,11 +62,7 @@ mean_rel_opt_gap_dicts = [ dict( data = 6000/(1 + np.arange(iters))**2, label = 
 #### STACKING THE X-COORDINATE
 mean_rel_opt_gap_dicts = [ dict( data = 1 + np.arange(iters), label = '$k+1$', ls = None, c = None ) ] + mean_rel_opt_gap_dicts
 #### SAVING RESULTS
-results_matrix = np.stack( [ d.get('data') for d in mean_rel_opt_gap_dicts ] ).T
-np.savetxt( os.path.join( DATA_PATH, 'optgap.txt' ), results_matrix )
-with open( os.path.join( DATA_PATH, 'optgap_labels.txt' ), 'w' ) as f:
-    for d in mean_rel_opt_gap_dicts:
-        f.write(f"{d.get('label')}\n")
+pm.save_data( mean_rel_opt_gap_dicts, data_path = DATA_PATH, data_name = 'optgap' )
 #### PLOTTING
 for j in range(6):
     pm.plot_data( mean_rel_opt_gap_dicts[:4] + mean_rel_opt_gap_dicts[4+j*5:4+(j+1)*5],
@@ -128,8 +123,7 @@ print('-------------------------------------------------------------------------
 
 ######################### TRAINING - TESTING PARAMETERS ##################################
 TEST_MODE           = 'val'
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 TEST_DATASET_RATIO  = 1.0
 PROBLEM             = 'lasso'
 
@@ -143,8 +137,8 @@ TRAIN_DATASET_RATIO = [ 1.0 ]
 TAU_FISTA_UNTRAINED = [ 1.0 ]
 
 # FISTA-LD PARAMETERS
-ALPHA         = [ 10**(-2.5) ]
-GAMMA         = [ 0.05 ]
+ALPHA         = [ 10**(-3.0) ]
+GAMMA         = [ 0.025 ]
 CONST_TAU     = [ -1.0 ]
 PARAMS        = list( product( list( zip( GAMMA, CONST_TAU ) ), ALPHA ) )
 FISTA_LD_LIST = list( product( PARAMS, TRAIN_DATASET_RATIO, EPOCHS_TO_SAVE, list( zip( MINITER, MAXITER ) ) ) )
@@ -168,12 +162,6 @@ iters = mean_rel_opt_gap_dicts[0].get('data').shape[0]
 mean_rel_opt_gap_dicts = [ dict( data = 6000/(1 + np.arange(iters))**2, label = '$O(1/k^2)$', ls = ':', c = 'k' ) ] + mean_rel_opt_gap_dicts
 #### STACKING THE X-COORDINATE
 mean_rel_opt_gap_dicts = [ dict( data = 1 + np.arange(iters), label = '$k+1$', ls = None, c = None ) ] + mean_rel_opt_gap_dicts
-#### SAVING RESULTS
-results_matrix = np.stack( [ d.get('data') for d in mean_rel_opt_gap_dicts ] ).T
-np.savetxt( os.path.join( DATA_PATH, 'optgap.txt' ), results_matrix )
-with open( os.path.join( DATA_PATH, 'optgap_labels.txt' ), 'w' ) as f:
-    for d in mean_rel_opt_gap_dicts:
-        f.write(f"{d.get('label')}\n")
 #### PLOTTING
 pm.plot_data( mean_rel_opt_gap_dicts,
               ylabel = r'$\mean_b\left(\frac{F_b(x_{b,k})-F_b^*}{F_b^*}\right)$',
@@ -197,8 +185,7 @@ print('---------------------------------------- EXPERIMENT 3 (Start) -----------
 print('------------------------------------------------------------------------------------------------------\n')
 ######################### TRAINING - TESTING PARAMETERS ##################################
 TEST_MODE           = 'test'
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 TEST_DATASET_RATIO  = 1.0
 PROBLEM             = 'lasso'
 
@@ -212,8 +199,8 @@ TRAIN_DATASET_RATIO = [ 1.0 ]
 TAU_FISTA_UNTRAINED = [ 1.0 ]
 
 # FISTA-LD PARAMETERS
-ALPHA         = [ 10**(-2.5) ]
-GAMMA         = [ 0.05 ]
+ALPHA         = [ 10**(-3.0) ]
+GAMMA         = [ 0.025 ]
 CONST_TAU     = [ -1.0 ]
 PARAMS        = list( product( list( zip( GAMMA, CONST_TAU ) ), ALPHA ) )
 FISTA_LD_LIST = list( product( PARAMS, TRAIN_DATASET_RATIO, EPOCHS_TO_SAVE, list( zip( MINITER, MAXITER ) ) ) )
@@ -238,12 +225,6 @@ iters = mean_rel_opt_gap_dicts[0].get('data').shape[0]
 mean_rel_opt_gap_dicts = [ dict( data = 6000/(1 + np.arange(iters))**2, label = '$O(1/k^2)$', ls = ':', c = 'k' ) ] + mean_rel_opt_gap_dicts
 #### STACKING THE X-COORDINATE
 mean_rel_opt_gap_dicts = [ dict( data = 1 + np.arange(iters), label = '$k+1$', ls = None, c = None ) ] + mean_rel_opt_gap_dicts
-#### SAVING RESULTS
-results_matrix = np.stack( [ d.get('data') for d in mean_rel_opt_gap_dicts ] ).T
-np.savetxt( os.path.join( DATA_PATH, 'optgap.txt' ), results_matrix )
-with open( os.path.join( DATA_PATH, 'optgap_labels.txt' ), 'w' ) as f:
-    for d in mean_rel_opt_gap_dicts:
-        f.write(f"{d.get('label')}\n")
 #### PLOTTING
 pm.plot_data( mean_rel_opt_gap_dicts,
               ylabel = r'$\mean_b\left(\frac{F_b(x_{b,k})-F_b^*}{F_b^*}\right)$',
@@ -267,8 +248,7 @@ print('---------------------------------------- EXPERIMENT 4 (Start) -----------
 print('------------------------------------------------------------------------------------------------------\n')
 ######################### TRAINING - TESTING PARAMETERS ##################################
 TEST_MODE           = 'val'
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 TEST_DATASET_RATIO  = 1.0
 PROBLEM             = 'lstv'
 
@@ -282,7 +262,7 @@ TRAIN_DATASET_RATIO = [ 0.05 ]
 TAU_FISTA_UNTRAINED = [ 0.1, 0.25, 0.5, 0.75, 0.9 ]
 
 # FISTA-LD PARAMETERS
-ALPHA         = [ 10**(-2.5) ]
+ALPHA         = [ 10**(-3.0) ]
 GAMMA         = [ -1.0, -1.0, -1.0, -1.0, -1.0 ]
 CONST_TAU     = [ 0.1, 0.25, 0.5, 0.75, 0.9 ]
 PARAMS        = list( product( list( zip( GAMMA, CONST_TAU ) ), ALPHA ) )
@@ -308,16 +288,14 @@ iters = mean_rel_opt_gap_dicts[0].get('data').shape[0]
 mean_rel_opt_gap_dicts = [ dict( data = 6000/(1 + np.arange(iters))**2, label = '$O(1/k^2)$', ls = ':', c = 'k' ) ] + mean_rel_opt_gap_dicts
 #### STACKING THE X-COORDINATE
 mean_rel_opt_gap_dicts = [ dict( data = 1 + np.arange(iters), label = '$k+1$', ls = None, c = None ) ] + mean_rel_opt_gap_dicts
-#### SAVING RESULTS
-results_matrix = np.stack( [ d.get('data') for d in mean_rel_opt_gap_dicts ] ).T
-np.savetxt( os.path.join( DATA_PATH, 'optgap.txt' ), results_matrix )
-with open( os.path.join( DATA_PATH, 'optgap_labels.txt' ), 'w' ) as f:
-    for d in mean_rel_opt_gap_dicts:
-        f.write(f"{d.get('label')}\n")
 #### PLOTTING
-pm.plot_data( mean_rel_opt_gap_dicts,
-              ylabel = r'$\mean_b\left(\frac{F_b(x_{b,k})-F_b^*}{F_b^*}\right)$',
-              fig_path = DATA_PATH, fig_name = 'optgap' )
+optgap_fig_exp4 = pm.plot_data( mean_rel_opt_gap_dicts, 
+                                ylabel = r'$\mean_b\left(\frac{F_b(x_{b,k})-F_b^*}{F_b^*}\right)$',
+                                fig_path = DATA_PATH, fig_name = 'optgap' )
+#### ADDING MARKS AT THE X-AXIS WHERE THE PROXIMAL OPERATOR SOLVER STARTS TO FAIL
+flag_dicts = pm.load_data( 'flag_hist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE,
+                           TAU_FISTA_UNTRAINED, FISTA_LD_LIST, DEEPOPT_LIST )
+pm.add_marks( flag_dicts, optgap_fig_exp4, fig_path = DATA_PATH, fig_name = 'optgap_w_marks' )
 
 ######################### TRAINED ALGORITHMS' MEAN VALIDATION LOSS AND PENALTY ##################################
 val_loss, penalty, metrics_label_list = pm.compute_metrics( TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM,
@@ -337,8 +315,7 @@ print('---------------------------------------- EXPERIMENT 5 (Start) -----------
 print('------------------------------------------------------------------------------------------------------\n')
 ######################### TRAINING - TESTING PARAMETERS ##################################
 TEST_MODE           = 'test'
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 TEST_DATASET_RATIO  = 1.0
 PROBLEM             = 'lstv'
 
@@ -349,12 +326,12 @@ MAXITER             = [ 20 ]
 TRAIN_DATASET_RATIO = [ 1.0 ]
 
 # FISTA PARAMETER
-TAU_FISTA_UNTRAINED = [ 0.75 ]
+TAU_FISTA_UNTRAINED = [ 0.5 ]
 
 # FISTA-LD PARAMETERS
-ALPHA         = [ 10**(-2.5) ]
+ALPHA         = [ 10**(-3.0) ]
 GAMMA         = [ -1.0 ]
-CONST_TAU     = [ 0.75 ]
+CONST_TAU     = [ 0.5 ]
 PARAMS        = list( product( list( zip( GAMMA, CONST_TAU ) ), ALPHA ) )
 FISTA_LD_LIST = list( product( PARAMS, TRAIN_DATASET_RATIO, EPOCHS_TO_SAVE, list( zip( MINITER, MAXITER ) ) ) )
 
@@ -378,16 +355,14 @@ iters = mean_rel_opt_gap_dicts[0].get('data').shape[0]
 mean_rel_opt_gap_dicts = [ dict( data = 6000/(1 + np.arange(iters))**2, label = '$O(1/k^2)$', ls = ':', c = 'k' ) ] + mean_rel_opt_gap_dicts
 #### STACKING THE X-COORDINATE
 mean_rel_opt_gap_dicts = [ dict( data = 1 + np.arange(iters), label = '$k+1$', ls = None, c = None ) ] + mean_rel_opt_gap_dicts
-#### SAVING RESULTS
-results_matrix = np.stack( [ d.get('data') for d in mean_rel_opt_gap_dicts ] ).T
-np.savetxt( os.path.join( DATA_PATH, 'optgap.txt' ), results_matrix )
-with open( os.path.join( DATA_PATH, 'optgap_labels.txt' ), 'w' ) as f:
-    for d in mean_rel_opt_gap_dicts:
-        f.write(f"{d.get('label')}\n")
 #### PLOTTING
-pm.plot_data( mean_rel_opt_gap_dicts,
-              ylabel = r'$\mean_b\left(\frac{F_b(x_{b,k})-F_b^*}{F_b^*}\right)$',
-              fig_path = DATA_PATH, fig_name = 'optgap' )
+optgap_fig_exp5 = pm.plot_data( mean_rel_opt_gap_dicts,
+                                ylabel = r'$\mean_b\left(\frac{F_b(x_{b,k})-F_b^*}{F_b^*}\right)$',
+                                fig_path = DATA_PATH, fig_name = 'optgap' )
+#### ADDING MARKS ON THE X-AXIS WHERE THE PROXIMAL OPERATOR SOLVER BEGINS TO FAIL
+flag_dicts = pm.load_data( 'flag_hist', TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM, DATE,
+                           TAU_FISTA_UNTRAINED, FISTA_LD_LIST, DEEPOPT_LIST )
+pm.add_marks( flag_dicts, optgap_fig_exp5, fig_path = DATA_PATH, fig_name = 'optgap_w_marks' )
 
 ######################### TRAINED ALGORITHMS' MEAN VALIDATION LOSS AND PENALTY ##################################
 val_loss, penalty, metrics_label_list = pm.compute_metrics( TEST_MODE, DATASET, TEST_DATASET_RATIO, PROBLEM,

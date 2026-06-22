@@ -13,27 +13,8 @@ tf.keras.utils.set_random_seed(42)
 # Enabling operations determinism
 tf.config.experimental.enable_op_determinism()
 # GPU settings
-TRAIN_ON_GPU     = True
-MEMORY_GROWTH    = False
-# TOTAL_GPU_MEMORY = 16303
-TOTAL_GPU_MEMORY = 4096
-if TRAIN_ON_GPU:
-    gpus = tf.config.list_physical_devices( 'GPU' )
-    if gpus:
-        # Setting memory growth
-        try:
-            # Currently, memory growth needs to be the same across GPUs
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth( gpu, MEMORY_GROWTH )
-        except RuntimeError as e:
-            # Memory growth must be set before GPUs have been initialized
-            print(e)
-        # Setting memory limit
-        tf.config.set_logical_device_configuration(
-            gpus[0],
-            [ tf.config.LogicalDeviceConfiguration( memory_limit = TOTAL_GPU_MEMORY * 0.80 ) ]
-        )
-else:
+TRAIN_ON_GPU = True
+if not TRAIN_ON_GPU:
     tf.config.set_visible_devices( [], 'GPU' )
 
 from traintest import test_untrained, train_fista_ld, test_fista_ld, train_deepopt, test_deepopt
@@ -51,8 +32,7 @@ print('---------------------------------------- EXPERIMENT 1 (Start) -----------
 print('------------------------------------------------------------------------------------------------------\n')
 
 #### TRAINING - TESTING PARAMETERS
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 PROBLEM             = 'lasso'
 TRAIN_BATCH_SIZE    = 1
 EPOCHS_TO_SAVE      = [ 20 ]
@@ -63,7 +43,7 @@ MAXITER             = [ 20 ]
 
 TEST_MODE           = 'val'
 TEST_ITERS          = 1000
-TEST_BATCH_SIZE     = 100
+TEST_BATCH_SIZE     = 64
 
 TRAIN_DATASET_RATIO = [ 0.05 ]
 TEST_DATASET_RATIO  = [ 1.0 ] * len(TRAIN_DATASET_RATIO)
@@ -145,8 +125,7 @@ print('---------------------------------------- EXPERIMENT 2 (Start) -----------
 print('------------------------------------------------------------------------------------------------------\n')
 
 #### TRAINING - TESTING PARAMETERS
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 PROBLEM             = 'lasso'
 TRAIN_BATCH_SIZE    = 1
 EPOCHS_TO_SAVE      = [ 20, 40, 60, 80, 100 ]
@@ -157,7 +136,7 @@ MAXITER             = [ 20 ]
 
 TEST_MODE           = 'val'
 TEST_ITERS          = 1000
-TEST_BATCH_SIZE     = 100
+TEST_BATCH_SIZE     = 64
 
 TRAIN_DATASET_RATIO = [ 1.0 ]
 TEST_DATASET_RATIO  = [ 1.0 ] * len(TRAIN_DATASET_RATIO)
@@ -167,8 +146,8 @@ DATASET_RATIO = list( zip( TRAIN_DATASET_RATIO, TEST_DATASET_RATIO ) )
 # same as Experiment 1
 
 ### TRAINING - TESTING FISTA-LD -- set a negative const_tau to enable varying tau
-ALPHA     = [ 10**(-2.5) ]
-GAMMA     = [ 0.05 ]
+ALPHA     = [ 10**(-3.0) ]
+GAMMA     = [ 0.025 ]
 CONST_TAU = [ -1.0 ]
 PARAMS    = list( zip( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
 for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)), PARAMS ) ):
@@ -210,8 +189,7 @@ print('---------------------------------------- EXPERIMENT 3 (Start) -----------
 print('------------------------------------------------------------------------------------------------------\n')
 
 #### TRAINING - TESTING PARAMETERS
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 PROBLEM             = 'lasso'
 TRAIN_BATCH_SIZE    = 1
 EPOCHS_TO_SAVE      = [ 100 ]
@@ -222,7 +200,7 @@ MAXITER             = [ 20 ]
 
 TEST_MODE           = 'test'
 TEST_ITERS          = 1000
-TEST_BATCH_SIZE     = 100
+TEST_BATCH_SIZE     = 64
 
 TRAIN_DATASET_RATIO = [ 1.0 ]
 TEST_DATASET_RATIO  = [ 1.0 ] * len(TRAIN_DATASET_RATIO)
@@ -239,8 +217,8 @@ for dataset_ratio in set(TEST_DATASET_RATIO):
         test_untrained( DATASET, PROBLEM, TEST_MODE, 'fista', TEST_BATCH_SIZE, TEST_ITERS, tau = tau_fista, dataset_ratio = dataset_ratio )
 
 ### TRAINING - TESTING FISTA-LD -- set a negative const_tau to enable varying tau
-ALPHA     = [ 10**(-2.5) ]
-GAMMA     = [ 0.05 ]
+ALPHA     = [ 10**(-3.0) ]
+GAMMA     = [ 0.025 ]
 CONST_TAU = [ -1.0 ]
 PARAMS    = list( zip( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
 for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)), PARAMS ) ):
@@ -300,8 +278,7 @@ print('---------------------------------------- EXPERIMENT 4 (Start) -----------
 print('------------------------------------------------------------------------------------------------------\n')
 
 #### TRAINING - TESTING PARAMETERS
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 PROBLEM             = 'lstv'
 TRAIN_BATCH_SIZE    = 1
 EPOCHS_TO_SAVE      = [ 20 ]
@@ -312,7 +289,7 @@ MAXITER             = [ 20 ]
 
 TEST_MODE           = 'val'
 TEST_ITERS          = 200
-TEST_BATCH_SIZE     = 100
+TEST_BATCH_SIZE     = 64
 
 TRAIN_DATASET_RATIO = [ 0.05 ]
 TEST_DATASET_RATIO  = [ 1.0 ] * len(TRAIN_DATASET_RATIO)
@@ -327,7 +304,7 @@ for dataset_ratio in set(TEST_DATASET_RATIO):
         test_untrained( DATASET, PROBLEM, TEST_MODE, 'fista', TEST_BATCH_SIZE, TEST_ITERS, tau = tau_fista, dataset_ratio = dataset_ratio )
 
 ### TRAINING - TESTING FISTA-LD
-ALPHA     = [ 10**(-2.5) ]
+ALPHA     = [ 10**(-3.0) ]
 GAMMA     = [ -1.0, -1.0, -1.0, -1.0, -1.0 ]
 CONST_TAU = [ 0.1, 0.25, 0.5, 0.75, 0.9 ]
 PARAMS      = list( product( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
@@ -370,8 +347,7 @@ print('---------------------------------------- EXPERIMENT 5 (Start) -----------
 print('------------------------------------------------------------------------------------------------------\n')
 
 #### TRAINING - TESTING PARAMETERS
-# DATASET             = 'mayo_clinic_512'
-DATASET             = 'mayo_clinic_128'
+DATASET             = 'mayo_clinic_512'
 PROBLEM             = 'lstv'
 TRAIN_BATCH_SIZE    = 1
 EPOCHS_TO_SAVE      = [ 20 ]
@@ -382,7 +358,7 @@ MAXITER             = [ 20 ]
 
 TEST_MODE           = 'test'
 TEST_ITERS          = 200
-TEST_BATCH_SIZE     = 100
+TEST_BATCH_SIZE     = 64
 
 TRAIN_DATASET_RATIO = [ 1.0 ]
 TEST_DATASET_RATIO  = [ 1.0 ] * len(TRAIN_DATASET_RATIO)
@@ -390,16 +366,16 @@ DATASET_RATIO = list( zip( TRAIN_DATASET_RATIO, TEST_DATASET_RATIO ) )
 
 #### TEST UNTRAINED ALGORITHMS
 # FISTA PARAMETER
-TAU_FISTA_UNTRAINED = [ 0.75 ]
+TAU_FISTA_UNTRAINED = [ 0.5 ]
 for dataset_ratio in set(TEST_DATASET_RATIO):
     for tau_fista in TAU_FISTA_UNTRAINED:
         print(f'Testing FISTA (tau={tau_fista}) with {100*dataset_ratio} percent of data')
         test_untrained( DATASET, PROBLEM, TEST_MODE, 'fista', TEST_BATCH_SIZE, TEST_ITERS, tau = tau_fista, dataset_ratio = dataset_ratio )
 
 ### TRAINING - TESTING FISTA-LD
-ALPHA     = [ 10**(-2.5) ]
+ALPHA     = [ 10**(-3.0) ]
 GAMMA     = [ -1.0 ]
-CONST_TAU = [ 0.75 ]
+CONST_TAU = [ 0.5 ]
 PARAMS    = list( zip( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
 for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)), PARAMS ) ):
     dataset_ratio, iters, params = options
