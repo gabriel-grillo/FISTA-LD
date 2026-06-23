@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 import numpy as np
 from itertools import product
 
@@ -17,7 +16,7 @@ TEST_DATASET_RATIO  = 0.05
 PROBLEM             = 'lasso'
 
 # TRANING PARAMETERS
-DATE                = datetime.today().strftime('%Y-%m-%d')
+DATE                = '1'
 EPOCHS_TO_SAVE      = [ 5 ]
 MINITER             = [  1 ]
 MAXITER             = [ 20 ]
@@ -27,8 +26,8 @@ TRAIN_DATASET_RATIO = [ 0.05 ]
 TAU_FISTA_UNTRAINED = [ 1.0 ]
 
 # FISTA-LD PARAMETERS
-ALPHA         = [10**(-2.5)]
-GAMMA         = [ 0.05 ]
+ALPHA         = [ 10**(-3.0) ]
+GAMMA         = [ 0.025 ]
 CONST_TAU     = [ -1.0 ]
 PARAMS        = list( product( list( zip( GAMMA, CONST_TAU ) ), ALPHA ) )
 FISTA_LD_LIST = list( product( PARAMS, TRAIN_DATASET_RATIO, EPOCHS_TO_SAVE, list( zip( MINITER, MAXITER ) ) ) )

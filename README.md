@@ -46,7 +46,7 @@ docker build --build-arg CUDA_ARCH=$(nvidia-smi --query-gpu=compute_cap --format
 
 Then, run the container:
 ```
-docker run --rm --runtime=nvidia --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --mount type=bind,source=$(pwd)/code,target=/code -it fista-ld
+docker run --rm --runtime=nvidia --gpus '"device=0"' --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --mount type=bind,source=$(pwd)/code,target=/code -it fista-ld
 ```
 
 This opens an interactive terminal inside the container, from which the experiments can be executed.

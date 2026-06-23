@@ -1,26 +1,54 @@
 import os
-# For reproducibility
+#### For reproducibility
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ["PYTHONHASHSEED"] = "42"
-from datetime import datetime
-from itertools import product
-import numpy as np
+
+import pynvml
 import tensorflow as tf
 
-### Tensorflow settings
+#### GPU settings
+TF_USE_GPU  = True
+MIN_VRAM_MB = 12 * 1024
+if TF_USE_GPU:
+    # Listing visable GPUs and asserting that there is at least one
+    gpus = tf.config.list_physical_devices('GPU')
+    if not gpus:
+        raise RuntimeError("No GPU detected.")
+    # Asserting that the first GPU has sufficient free VRAM
+    pynvml.nvmlInit()
+    try:
+        mem = pynvml.nvmlDeviceGetMemoryInfo( pynvml.nvmlDeviceGetHandleByIndex( 0 ) )
+        if mem.free < MIN_VRAM_MB * 1024**2:
+            raise RuntimeError(
+                f"Insufficient free VRAM. "
+                f"Required: {MIN_VRAM_MB / 1024:.1f} GiB. "
+                f"Available: {mem.free / 1024**3:.1f} GiB."
+            )
+    finally:
+        pynvml.nvmlShutdown()
+    # Configuring TensorFlow GPU memory limit for the first GPU
+    tf.config.set_logical_device_configuration(
+        gpus[0],
+        [ tf.config.LogicalDeviceConfiguration( memory_limit = MIN_VRAM_MB) ]
+    )
+else:
+    tf.config.set_visible_devices( [], 'GPU' )
+
+#### Tensorflow settings
 # Setting random seeds for 'random', 'numpy' and 'tensorflow'
 tf.keras.utils.set_random_seed(42)
 # Enabling operations determinism
 tf.config.experimental.enable_op_determinism()
-# GPU settings
-TRAIN_ON_GPU = True
-if not TRAIN_ON_GPU:
-    tf.config.set_visible_devices( [], 'GPU' )
 
+import numpy as np
+import time
+from itertools import product
 from traintest import test_untrained, train_fista_ld, test_fista_ld, train_deepopt, test_deepopt
 
+#### For time measurement
+start_time = time.time()
+
 #### Date to save results
-# DATE = datetime.today().strftime('%Y-%m-%d')
 DATE = '0'
 
 #######################################################################################################################
@@ -406,3 +434,7 @@ for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)),
 print('\n------------------------------------------------------------------------------------------------------')
 print('---------------------------------------- EXPERIMENT 5 (End) ------------------------------------------')
 print('------------------------------------------------------------------------------------------------------\n')
+
+#### For time measurement
+end_time = time.time()
+print(f"\nElapsed time: {end_time - start_time:.5e} seconds")

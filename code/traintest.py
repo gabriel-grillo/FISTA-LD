@@ -390,6 +390,40 @@ def train_deepopt( dataset, problem, miniter, maxiter, alpha,
 #######################################################################################################################
 ################################################### TEST ROUTINES #####################################################
 #######################################################################################################################
+def test_loop( test_step, ds, batch_size, result_path, filenames ):
+    hist_list = []
+    for step, (b,_) in enumerate(ds):
+        # Running the algorithm
+        rec, hist = test_step( b )
+        
+        # Printing results
+        for j in range(b.shape[0]):
+            if PRINT_FINAL_LOSS:
+                print("Test example ", step * batch_size + j, "------------------------")
+                print("Final loss ", hist[0][j][-1].numpy())
+
+            if SAVE_RECONSTRUCTIONS:
+                # Saving reconstructions
+                pp.imshow( rec[j,...,0], cmap = 'gray' )
+                pp.yticks([])
+                pp.xticks([])
+                pp.ylabel(f'{tf.shape(rec[j,...,0])[0]}')
+                pp.xlabel(f'{tf.shape(rec[j,...,0])[1]}')
+                pp.colorbar()
+                pp.savefig( os.path.join( result_path, 'image', 'rec' + str(step * batch_size + j) + '.png' ) )
+                pp.close()
+
+        # Saving test info to list
+        hist_list.append( hist )
+
+    # Saving hist info to file
+    for i, fn in enumerate( filenames ):
+        file_path = os.path.join( result_path, fn )
+        if os.path.exists( file_path ):
+            os.remove( file_path )
+        with open( file_path, 'wb' ) as f:
+            np.save( f, np.concatenate( [ h[i] for h in hist_list  ], axis = 0 ) )
+
 def test_untrained( dataset, problem, mode, algorithm, batch_size, iters, tau = 1.0, dataset_ratio = 1.0 ):
     assert algorithm == 'fista' or algorithm == 'ista', 'Unimplemented algorithm: ' + algorithm
     ######################### PROBLEM'S DEFINITION ##################################
@@ -402,18 +436,9 @@ def test_untrained( dataset, problem, mode, algorithm, batch_size, iters, tau = 
     else:
         RESULT_PATH = hist_path( 'ista', [ mode, dataset, dataset_ratio, problem ] )
 
-    Fhist_filename = os.path.join( RESULT_PATH, 'Fhist.npy' )
-    if os.path.exists(Fhist_filename):
-        os.remove(Fhist_filename)
-    Rhist_filename = os.path.join( RESULT_PATH, 'Rhist.npy' )
-    if os.path.exists(Rhist_filename):
-        os.remove(Rhist_filename)
-    flag_hist_filename = os.path.join( RESULT_PATH, 'flag_hist.npy' )
-    if os.path.exists(flag_hist_filename):
-        os.remove(flag_hist_filename)
-    inner_iter_hist_filename = os.path.join( RESULT_PATH, 'inner_iter_hist.npy' )
-    if os.path.exists(inner_iter_hist_filename):
-        os.remove(inner_iter_hist_filename)
+    FILENAMES = [
+        'Fhist.npy', 'Rhist.npy', 'flag_hist.npy', 'inner_iter_hist.npy'
+    ]
 
     ######################### TEST STEP ##################################
     if algorithm == 'fista':
@@ -463,46 +488,7 @@ def test_untrained( dataset, problem, mode, algorithm, batch_size, iters, tau = 
             return x, hist
             
     ######################### RUNING OVER DATASET ##################################
-    Fhist_list = []
-    Rhist_list = []
-    flag_hist_list = []
-    inner_iter_hist_list = []
-    for step, (b,_) in enumerate(ds):
-        # Running the algorithm
-        rec, hist = test_step( b )
-
-        for j in range(b.shape[0]):
-            if PRINT_FINAL_LOSS:
-                # Printing results
-                print("Test example ", step * batch_size + j, "------------------------")
-                print("Final loss ", hist[0][j][-1].numpy())
-
-            if SAVE_RECONSTRUCTIONS:
-                # Saving reconstructions
-                pp.imshow( rec[j,...,0], cmap = 'gray' )
-                pp.yticks([])
-                pp.xticks([])
-                pp.ylabel(f'{tf.shape(rec[j,...,0])[0]}')
-                pp.xlabel(f'{tf.shape(rec[j,...,0])[1]}')
-                pp.colorbar()
-                pp.savefig( os.path.join( RESULT_PATH, 'image', 'rec' + str(step * batch_size + j) + '.png' ) )
-                pp.close()
-
-        # Saving test info to list
-        Fhist_list.append( hist[0].numpy() )
-        Rhist_list.append( hist[1].numpy() )
-        flag_hist_list.append( hist[2].numpy() )
-        inner_iter_hist_list.append( hist[3].numpy() )
-
-    # Saving hist info to file
-    with open( Fhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( Fhist_list, axis = 0 ) )
-    with open( Rhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( Rhist_list, axis = 0 ) )
-    with open( flag_hist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( flag_hist_list, axis = 0 ) )
-    with open( inner_iter_hist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( inner_iter_hist_list, axis = 0 ) )
+    test_loop( test_step, ds, batch_size, RESULT_PATH, FILENAMES )
 
 
 def test_fista_ld( dataset, problem, mode, miniter, maxiter, alpha, gamma, const_tau,
@@ -516,38 +502,11 @@ def test_fista_ld( dataset, problem, mode, miniter, maxiter, alpha, gamma, const
     RESULT_PATH = hist_path( 'fista-ld',
                              [ mode, dataset, train_dataset_ratio, test_dataset_ratio,
                                problem, miniter, maxiter, alpha, gamma, const_tau, date, epochs ] )
-
-    Fhist_filename = os.path.join( RESULT_PATH, 'Fhist.npy' )
-    if os.path.exists(Fhist_filename):
-        os.remove(Fhist_filename)
-
-    Rhist_filename = os.path.join( RESULT_PATH, 'Rhist.npy' )
-    if os.path.exists(Rhist_filename):
-        os.remove(Rhist_filename)
-
-    dyhist_filename = os.path.join( RESULT_PATH, 'dyhist.npy' )
-    if os.path.exists(dyhist_filename):
-        os.remove(dyhist_filename)
-
-    dyubhist_filename = os.path.join( RESULT_PATH, 'dyubhist.npy' )
-    if os.path.exists(dyubhist_filename):
-        os.remove(dyubhist_filename)
-
-    dwhist_filename = os.path.join( RESULT_PATH, 'dwhist.npy' )
-    if os.path.exists(dwhist_filename):
-        os.remove(dwhist_filename)
-
-    dwubhist_filename = os.path.join( RESULT_PATH, 'dwubhist.npy' )
-    if os.path.exists(dwubhist_filename):
-        os.remove(dwubhist_filename)
-
-    flag_hist_filename = os.path.join( RESULT_PATH, 'flag_hist.npy' )
-    if os.path.exists(flag_hist_filename):
-        os.remove(flag_hist_filename)
-
-    inner_iter_hist_filename = os.path.join( RESULT_PATH, 'inner_iter_hist.npy' )
-    if os.path.exists(inner_iter_hist_filename):
-        os.remove(inner_iter_hist_filename)
+    
+    FILENAMES = [
+        'Fhist.npy', 'Rhist.npy', 'dyhist.npy', 'dyubhist.npy',
+        'dwhist.npy', 'dwubhist.npy', 'flag_hist.npy', 'inner_iter_hist.npy'
+    ]
 
     ######################### TEST STEP ##################################
     ##### MODELS' PATH
@@ -601,62 +560,7 @@ def test_fista_ld( dataset, problem, mode, miniter, maxiter, alpha, gamma, const
         return x, hist
     
     ######################### RUNING OVER DATASET ##################################
-    Fhist_list = []
-    Rhist_list = []
-    dyhist_list = []
-    dyubhist_list = []
-    dwhist_list = []
-    dwubhist_list = []
-    flag_hist_list = []
-    inner_iter_hist_list = []
-    for step, (b,_) in enumerate(ds):
-        # Running the algorithm
-        rec, hist = test_step( b )
-        
-        # Printing results
-        for j in range(b.shape[0]):
-            if PRINT_FINAL_LOSS:
-                print("Test example ", step * batch_size + j, "------------------------")
-                print("Final loss ", hist[0][j][-1].numpy())
-
-            if SAVE_RECONSTRUCTIONS:
-                # Saving reconstructions
-                pp.imshow( rec[j,...,0], cmap = 'gray' )
-                pp.yticks([])
-                pp.xticks([])
-                pp.ylabel(f'{tf.shape(rec[j,...,0])[0]}')
-                pp.xlabel(f'{tf.shape(rec[j,...,0])[1]}')
-                pp.colorbar()
-                pp.savefig( os.path.join( RESULT_PATH, 'image', 'rec' + str(step * batch_size + j) + '.png' ) )
-                pp.close()
-
-        # Saving test info to list
-        Fhist_list.append( hist[0].numpy() )
-        Rhist_list.append( hist[1].numpy() )
-        dyhist_list.append( hist[2].numpy() )
-        dyubhist_list.append( hist[3].numpy() )
-        dwhist_list.append( hist[4].numpy() )
-        dwubhist_list.append( hist[5].numpy() )
-        flag_hist_list.append( hist[6].numpy() )
-        inner_iter_hist_list.append( hist[7].numpy() )
-    
-    # Saving hist info to file
-    with open( Fhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( Fhist_list, axis = 0 ) )
-    with open( Rhist_filename, 'wb' ) as f: 
-        np.save( f, np.concatenate( Rhist_list, axis = 0 ) )
-    with open( dyhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( dyhist_list, axis = 0 ) )
-    with open( dyubhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( dyubhist_list, axis = 0 ) )
-    with open( dwhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( dwhist_list, axis = 0 ) )
-    with open( dwubhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( dwubhist_list, axis = 0 ) )
-    with open( flag_hist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( flag_hist_list, axis = 0 ) )
-    with open( inner_iter_hist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( inner_iter_hist_list, axis = 0 ) )
+    test_loop( test_step, ds, batch_size, RESULT_PATH, FILENAMES )
 
 
 def test_deepopt( dataset, problem, mode, miniter, maxiter, alpha, epochs, date,
@@ -670,26 +574,10 @@ def test_deepopt( dataset, problem, mode, miniter, maxiter, alpha, epochs, date,
     RESULT_PATH = hist_path( 'deepopt',
                              [ mode, dataset, train_dataset_ratio, test_dataset_ratio,
                                problem, miniter, maxiter, alpha, date, epochs ] )
-
-    Fhist_filename = os.path.join( RESULT_PATH, 'Fhist.npy' )
-    if os.path.exists(Fhist_filename):
-        os.remove(Fhist_filename)
-
-    dx1hist_filename = os.path.join( RESULT_PATH, 'dx1hist.npy' )
-    if os.path.exists(dx1hist_filename):
-        os.remove(dx1hist_filename)
-
-    dx1ubhist_filename = os.path.join( RESULT_PATH, 'dx1ubhist.npy' )
-    if os.path.exists(dx1ubhist_filename):
-        os.remove(dx1ubhist_filename)
-
-    dx2hist_filename = os.path.join( RESULT_PATH, 'dx2hist.npy' )
-    if os.path.exists(dx2hist_filename):
-        os.remove(dx2hist_filename)
-
-    dx2ubhist_filename = os.path.join( RESULT_PATH, 'dx2ubhist.npy' )
-    if os.path.exists(dx2ubhist_filename):
-        os.remove(dx2ubhist_filename)
+    FILENAMES = [
+        'Fhist.npy', 'dx1hist.npy', 'dx1ubhist.npy', 'dx2hist.npy',
+        'dx2ubhist.npy', 'flag_hist.npy', 'inner_iter_hist.npy'
+    ]
 
     ######################### TEST STEP ##################################
     ##### MODELS' PATH
@@ -725,47 +613,4 @@ def test_deepopt( dataset, problem, mode, miniter, maxiter, alpha, epochs, date,
         return x, hist
     
     ######################### RUNING OVER DATASET ##################################
-    Fhist_list = []
-    dx1hist_list = []
-    dx1ubhist_list = []
-    dx2hist_list = []
-    dx2ubhist_list = []
-    for step, (b,_) in enumerate(ds):
-        # Running the algorithm
-        rec, hist = test_step( b )
-        
-        # Printing results
-        for j in range(b.shape[0]):
-            if PRINT_FINAL_LOSS:
-                print("Test example ", step * batch_size + j, "------------------------")
-                print("Final loss ", hist[0][j][-1].numpy())
-
-            if SAVE_RECONSTRUCTIONS:
-                # Saving reconstructions
-                pp.imshow( rec[j,...,0], cmap = 'gray' )
-                pp.yticks([])
-                pp.xticks([])
-                pp.ylabel(f'{tf.shape(rec[j,...,0])[0]}')
-                pp.xlabel(f'{tf.shape(rec[j,...,0])[1]}')
-                pp.colorbar()
-                pp.savefig( os.path.join( RESULT_PATH, 'image', 'rec' + str(step * batch_size + j) + '.png' ) )
-                pp.close()
-
-        # Saving test info to list
-        Fhist_list.append( hist[0].numpy() )
-        dx1hist_list.append( hist[1].numpy() )
-        dx1ubhist_list.append( hist[2].numpy() )
-        dx2hist_list.append( hist[3].numpy() )
-        dx2ubhist_list.append( hist[4].numpy() )
-    
-    # Saving hist info to file
-    with open( Fhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( Fhist_list, axis = 0 ) )
-    with open( dx1hist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( dx1hist_list, axis = 0 ) )
-    with open( dx1ubhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( dx1ubhist_list, axis = 0 ) )
-    with open( dx2hist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( dx2hist_list, axis = 0 ) )
-    with open( dx2ubhist_filename, 'wb' ) as f:
-        np.save( f, np.concatenate( dx2ubhist_list, axis = 0 ) )
+    test_loop( test_step, ds, batch_size, RESULT_PATH, FILENAMES )

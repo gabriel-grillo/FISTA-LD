@@ -1,22 +1,47 @@
 import os
-# For reproducibility
+### For reproducibility
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ["PYTHONHASHSEED"] = "42"
-import time
-from datetime import datetime
-from itertools import product
+
+import pynvml
 import tensorflow as tf
+
+### GPU settings
+TF_USE_GPU  = True
+MIN_VRAM_MB = 12 * 1024
+if TF_USE_GPU:
+    # Listing visable GPUs and asserting that there is at least one
+    gpus = tf.config.list_physical_devices('GPU')
+    if not gpus:
+        raise RuntimeError("No GPU detected.")
+    # Asserting that the first GPU has sufficient free VRAM
+    pynvml.nvmlInit()
+    try:
+        mem = pynvml.nvmlDeviceGetMemoryInfo( pynvml.nvmlDeviceGetHandleByIndex( 0 ) )
+        if mem.free < MIN_VRAM_MB * 1024**2:
+            raise RuntimeError(
+                f"Insufficient free VRAM. "
+                f"Required: {MIN_VRAM_MB / 1024:.1f} GiB. "
+                f"Available: {mem.free / 1024**3:.1f} GiB."
+            )
+    finally:
+        pynvml.nvmlShutdown()
+    # Configuring TensorFlow GPU memory limit for the first GPU
+    tf.config.set_logical_device_configuration(
+        gpus[0],
+        [ tf.config.LogicalDeviceConfiguration( memory_limit = MIN_VRAM_MB) ]
+    )
+else:
+    tf.config.set_visible_devices( [], 'GPU' )
 
 ### Tensorflow settings
 # Setting random seeds for 'random', 'numpy' and 'tensorflow'
 tf.keras.utils.set_random_seed(42)
 # Enabling operations determinism
 tf.config.experimental.enable_op_determinism()
-# GPU settings
-TRAIN_ON_GPU = True
-if not TRAIN_ON_GPU:
-    tf.config.set_visible_devices( [], 'GPU' )
 
+import time
+from itertools import product
 from traintest import test_untrained, train_fista_ld, test_fista_ld, train_deepopt, test_deepopt
 
 #######################################################################################################
@@ -26,7 +51,7 @@ from traintest import test_untrained, train_fista_ld, test_fista_ld, train_deepo
 ##### TRAINING - TESTING PARAMETERS
 DATASET             = 'mayo_clinic_512'   # 'mayo_clinic_128' or 'mayo_clinic_512'
 PROBLEM             = 'lasso'             # 'nnls' or 'lasso' or 'slasso' or 'nnslasso'
-DATE                = datetime.today().strftime('%Y-%m-%d')
+DATE                = '1'
 
 TRAIN_BATCH_SIZE    = 1
 EPOCHS_TO_SAVE      = [ 5 ]
@@ -37,7 +62,7 @@ MAXITER             = [ 20 ]
 
 TEST_MODE           = 'val' # 'test' or 'val'
 TEST_ITERS          = 100
-TEST_BATCH_SIZE     = 11
+TEST_BATCH_SIZE     = 64
 
 TRAIN_DATASET_RATIO = [ 0.05 ]
 TEST_DATASET_RATIO  = [0.05] * len(TRAIN_DATASET_RATIO)
@@ -47,8 +72,8 @@ DATASET_RATIO = list( zip( TRAIN_DATASET_RATIO, TEST_DATASET_RATIO ) )
 TAU_FISTA_UNTRAINED = [ 1.0 ]
 
 # FISTA-LD PARAMETERS -- set a negative const_tau to enable varying tau
-ALPHA     = [ 10**(-2.5) ]
-GAMMA     = [ 0.05 ]
+ALPHA     = [ 10**(-3.0) ]
+GAMMA     = [ 0.025 ]
 CONST_TAU = [ -1.0 ]
 PARAMS    = list( zip( ALPHA, list( zip( GAMMA, CONST_TAU ) ) ) )
 
@@ -58,6 +83,9 @@ ALPHA_DO = [ 0.5 ]
 #######################################################################################################
 ############################################## EDIT HERE ##############################################
 #######################################################################################################
+
+#### For time measurement
+start_time = time.time()
 
 #### TEST UNTRAINED ALGORITHMS
 for dataset_ratio in set(TEST_DATASET_RATIO):
@@ -114,3 +142,7 @@ for i, options in enumerate( product( DATASET_RATIO, list(zip(MINITER,MAXITER)),
         print('Testing ' + label + f' trained with {epochs} epochs')
         test_deepopt( DATASET, PROBLEM, TEST_MODE, miniter, maxiter, alpha, epochs, DATE,
                       TEST_BATCH_SIZE, TEST_ITERS, dataset_ratio = dataset_ratio )
+
+#### For time measurement
+end_time = time.time()
+print(f"\nElapsed time: {end_time - start_time:.5e} seconds")
