@@ -31,6 +31,7 @@ The instructions below describe the environment used to run the experiments. The
 ### Prerequisites
 
 - An NVIDIA GPU with at least 12 GB of VRAM
+- At least 16 GB of RAM
 - At least 40 GB of available disk space
 - Docker: https://docs.docker.com/engine/install/ubuntu/
 - NVIDIA Container Toolkit: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html

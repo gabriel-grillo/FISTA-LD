@@ -16,68 +16,83 @@ def generate_observed_dataset( dataset ):
     # Numpy random generator
     rng = np.random.default_rng( seed = RANDOM_SEED )
 
-    # Reads files
-    data = []
+    # Reads filenames with path
+    path_to_data = []
     for (dirpath, dirnames, filenames) in os.walk(MAYO_FOLDER):
-        data.extend( [ os.path.join( dirpath, fi ) for fi in filenames ] )
-    data = np.array(data)
+        path_to_data.extend( [ os.path.join( dirpath, fi ) for fi in filenames ] )
+    path_to_data = np.array(path_to_data)
 
-    if data.size == 0:
+    if path_to_data.size == 0:
         raise ValueError( f'There is no data in {MAYO_FOLDER}. Please see the README.md at {os.path.join( os.getcwd(), 'data', 'mayo_clinic_image' )}.' )
 
     # Separates dataset into train, test, and validation
-    rng.shuffle( data )
-    data_size = data.shape[0]
+    rng.shuffle( path_to_data )
+    data_size = path_to_data.shape[0]
     test_size = int( data_size * TEST_RATIO )
     val_size = int( data_size * VAL_RATIO )
-    test_data = data[ :test_size ]
-    val_data = data[ test_size : test_size + val_size ]
-    train_data = data[ test_size + val_size : ]
+    path_to_data_partition = {
+        'test' : path_to_data[ :test_size ],
+        'val'  : path_to_data[ test_size : test_size + val_size ],
+        'train': path_to_data[ test_size + val_size : ]
+    }
 
     # Creates the transform based on the input dataset
     T = data_simulation_ray_transform( dataset )
 
-    # Generates noisy transformed data
-    train_transformed_data = []
-    val_transformed_data = []
-    test_transformed_data = []
-    for data, transformed_data in list( zip( [ train_data, val_data, test_data ], [ train_transformed_data, val_transformed_data, test_transformed_data ] ) ):
-        for fn in data:
-            # read image from dicom data
-            ds = dcmread(fn)
-            image = ds.pixel_array
-            image = image.astype(np.float32)
-            image /= 1000.0
-            # generate transformed data with normal 5% noise
-            transformed_torch = T( torch.from_numpy(image).float().cuda() )
-            transformed = transformed_torch.detach().cpu().numpy()
-            noisy = transformed + 0.05 * np.mean( np.abs( transformed ) ) * rng.normal( size = transformed.shape ).astype( np.float32 )
-            transformed_data.append( noisy[...,None] )
-
-    # Saves Datasets
-    dataset_path = os.path.join( os.getcwd(), 'data', dataset, 'observed' )
-    tf.data.Dataset.save( tf.data.Dataset.from_tensor_slices( train_transformed_data ), os.path.join( dataset_path, 'train' ) )
-    tf.data.Dataset.save( tf.data.Dataset.from_tensor_slices(   val_transformed_data ), os.path.join( dataset_path,   'val' ) )
-    tf.data.Dataset.save( tf.data.Dataset.from_tensor_slices(  test_transformed_data ), os.path.join( dataset_path,  'test' ) )
+    for mode in [ 'test', 'val', 'train' ]:
+        # Defines the generator for each partition of the dataset
+        def gen():
+            for fn in path_to_data_partition[mode]:
+                # read image from dicom data
+                ds = dcmread(fn)
+                image = ds.pixel_array
+                image = image.astype(np.float32)
+                image /= 1000.0
+                # generate transformed data with normal 5% noise
+                transformed_torch = T( torch.from_numpy(image).float().cuda() )
+                transformed = transformed_torch.detach().cpu().numpy()
+                noisy = transformed + 0.05 * np.mean( np.abs( transformed ) ) * rng.normal( size = transformed.shape ).astype( np.float32 )
+                yield noisy[...,None]
+        # Generates dataset
+        tf_dataset = tf.data.Dataset.from_generator(
+            gen,
+            output_signature = tf.TensorSpec(
+                shape = ( None, None, 1 ),
+                dtype = tf.float32
+            )
+        )
+        # Saves dataset
+        tf_dataset.save(
+            os.path.join( os.getcwd(), 'data', dataset, 'observed', mode )
+        )
         
 def generate_F_dataset( dataset, problem, F_ref ):
     dataset_path = os.path.join( os.getcwd(), 'data', dataset )
     for mode in ['train', 'val', 'test']:
         # Loading the observed sinograms dataset
         obs_dataset = tf.data.Dataset.load( os.path.join( dataset_path, 'observed', mode ) )
-        # Operations in batches of size 32.
-        obs_dataset = obs_dataset.batch( 32 )
-        # Empty list of functional values
-        F_list = []
-        # Running through examples
-        for b in obs_dataset:
-            hist = F_ref( b )
-            F_list.append( hist )
-        # Concatenation of the history
-        overall_hist = tf.concat( F_list, axis = 0 )
-        # Saves the functional values for reference dataset
-        tf.data.Dataset.save( tf.data.Dataset.from_tensor_slices( overall_hist ), \
-                              os.path.join( dataset_path, 'F_ref', problem, mode ) )
+        # Operations in batches
+        obs_dataset = obs_dataset.batch( 64 )
+        # Prefetch
+        obs_dataset = obs_dataset.prefetch(tf.data.AUTOTUNE)
+        # Defines the generator
+        def gen():
+            for b in obs_dataset:
+                hist = F_ref( b )
+                for h in hist:
+                    yield h
+        # Generates dataset
+        tf_dataset = tf.data.Dataset.from_generator(
+            gen,
+            output_signature = tf.TensorSpec(
+                shape = ( None, ),
+                dtype = tf.float32
+            )
+        )
+        # Saves dataset
+        tf_dataset.save(
+            os.path.join( os.getcwd(), 'data', dataset, 'F_ref', problem, mode )
+        )
 
 def get_dataset( dataset, mode, problem, batch_size, F_ref, overall_ratio = 1.0 ):
     assert mode == 'train' or mode == 'val' or mode == 'test'
@@ -108,9 +123,12 @@ def get_dataset( dataset, mode, problem, batch_size, F_ref, overall_ratio = 1.0 
 
     if mode == 'train':
         # Shuffles train examples at the beginning of each epoch
-        Dataset = Dataset.shuffle( 500, reshuffle_each_iteration = True, seed = RANDOM_SEED )
+        Dataset = Dataset.shuffle( buffer_size = 10 * batch_size, reshuffle_each_iteration = True, seed = RANDOM_SEED )
 
     # Combines examples on batches
     Dataset = Dataset.batch( batch_size )
+
+    # Prefetch
+    Dataset = Dataset.prefetch(tf.data.AUTOTUNE)
 
     return Dataset
