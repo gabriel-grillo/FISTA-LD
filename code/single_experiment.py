@@ -54,7 +54,7 @@ PROBLEM             = 'lasso'             # 'nnls' or 'lasso' or 'slasso' or 'nn
 DATE                = '1'
 
 TRAIN_BATCH_SIZE    = 1
-EPOCHS_TO_SAVE      = [ 5 ]
+EPOCHS_TO_SAVE      = [ 20 ]
 EPOCHS              = max(EPOCHS_TO_SAVE)
 LOAD_SAVED_MODELS   = False
 MINITER             = [  1 ]
@@ -65,7 +65,7 @@ TEST_ITERS          = 100
 TEST_BATCH_SIZE     = 64
 
 TRAIN_DATASET_RATIO = [ 0.05 ]
-TEST_DATASET_RATIO  = [0.05] * len(TRAIN_DATASET_RATIO)
+TEST_DATASET_RATIO  = [ 0.05 ] * len(TRAIN_DATASET_RATIO)
 DATASET_RATIO = list( zip( TRAIN_DATASET_RATIO, TEST_DATASET_RATIO ) )
 
 # FISTA PARAMETER

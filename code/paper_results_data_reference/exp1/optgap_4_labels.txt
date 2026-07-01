@@ -1,0 +1,9 @@
+$k+1$
+$O(1/k^2)$
+ISTA
+FISTA: $\tau=1.0$
+FISTA-LD: N=[1,20], $\alpha=10^{-3.5}$, $\gamma$=0.100, train data=0.05, epochs=20
+FISTA-LD: N=[1,20], $\alpha=10^{-3.0}$, $\gamma$=0.100, train data=0.05, epochs=20
+FISTA-LD: N=[1,20], $\alpha=10^{-2.5}$, $\gamma$=0.100, train data=0.05, epochs=20
+FISTA-LD: N=[1,20], $\alpha=10^{-2.0}$, $\gamma$=0.100, train data=0.05, epochs=20
+FISTA-LD: N=[1,20], $\alpha=10^{-1.5}$, $\gamma$=0.100, train data=0.05, epochs=20

@@ -1,0 +1,7 @@
+Metric                                                                              Validation loss  Penalty
+Algorithm                                                                                                   
+FISTA-LD: N=[1,20], $\alpha=10^{-3.0}$, $\gamma$=0.025, train data=1.0, epochs=20          4.70e-02 1.03e-04
+FISTA-LD: N=[1,20], $\alpha=10^{-3.0}$, $\gamma$=0.025, train data=1.0, epochs=40          4.23e-02 1.73e-04
+FISTA-LD: N=[1,20], $\alpha=10^{-3.0}$, $\gamma$=0.025, train data=1.0, epochs=60          3.99e-02 2.99e-04
+FISTA-LD: N=[1,20], $\alpha=10^{-3.0}$, $\gamma$=0.025, train data=1.0, epochs=80          4.09e-02 2.39e-04
+FISTA-LD: N=[1,20], $\alpha=10^{-3.0}$, $\gamma$=0.025, train data=1.0, epochs=100         4.14e-02 4.53e-04

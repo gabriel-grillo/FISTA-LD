@@ -190,7 +190,7 @@ TEST_DATASET_RATIO  = 1.0
 PROBLEM             = 'lasso'
 
 # TRANING PARAMETERS
-EPOCHS_TO_SAVE      = [ 100 ]
+EPOCHS_TO_SAVE      = [ 20 ]
 MINITER             = [  1 ]
 MAXITER             = [ 20 ]
 TRAIN_DATASET_RATIO = [ 1.0 ]

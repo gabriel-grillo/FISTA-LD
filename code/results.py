@@ -17,7 +17,7 @@ PROBLEM             = 'lasso'
 
 # TRANING PARAMETERS
 DATE                = '1'
-EPOCHS_TO_SAVE      = [ 5 ]
+EPOCHS_TO_SAVE      = [ 20 ]
 MINITER             = [  1 ]
 MAXITER             = [ 20 ]
 TRAIN_DATASET_RATIO = [ 0.05 ]

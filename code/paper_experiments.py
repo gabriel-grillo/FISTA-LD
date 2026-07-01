@@ -220,7 +220,7 @@ print('-------------------------------------------------------------------------
 DATASET             = 'mayo_clinic_512'
 PROBLEM             = 'lasso'
 TRAIN_BATCH_SIZE    = 1
-EPOCHS_TO_SAVE      = [ 100 ]
+EPOCHS_TO_SAVE      = [ 20 ]
 EPOCHS              = max(EPOCHS_TO_SAVE)
 LOAD_SAVED_MODELS   = False
 MINITER             = [  1 ]

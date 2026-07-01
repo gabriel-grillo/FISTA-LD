@@ -1,0 +1,7 @@
+Metric                                                        Validation loss  Penalty
+Algorithm                                                                             
+DeepOpt: N=[1,20], $\alpha$=0.10, train data=0.05, epochs=20         3.85e-01 1.25e-02
+DeepOpt: N=[1,20], $\alpha$=0.25, train data=0.05, epochs=20         1.40e-01 8.24e-03
+DeepOpt: N=[1,20], $\alpha$=0.50, train data=0.05, epochs=20         1.40e-01 6.30e-03
+DeepOpt: N=[1,20], $\alpha$=0.75, train data=0.05, epochs=20         1.65e-01 8.70e-03
+DeepOpt: N=[1,20], $\alpha$=0.90, train data=0.05, epochs=20         1.81e-01 1.78e-02

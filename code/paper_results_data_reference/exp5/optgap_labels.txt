@@ -1,0 +1,4 @@
+$k+1$
+$O(1/k^2)$
+FISTA: $\tau=0.5$
+FISTA-LD: N=[1,20], $\alpha=10^{-3.0}$, $\tau=0.50$, train data=1.0, epochs=20
